@@ -5,6 +5,14 @@ class User(Base):
     __tablename__ = 'users'
     id = Column(Integer, primary_key=True)
     email = Column(String, nullable=False, unique=True)
-    adobe_id = Column(String, nullable=False, unique=True)
+    first_name = Column(String)
+    last_name = Column(String)
+    adobe_user_id = Column(String, nullable=False, unique=True)
 
-    #things = relationship('Thing', back_populates='person')
+
+class Group(Base):
+    __tablename__ = 'groups'
+    id = Column(Integer, primary_key=True)
+    email = Column(String, nullable=False, unique=True)
+    adobe_group_id = Column(String, nullable=False, unique=True)
+
