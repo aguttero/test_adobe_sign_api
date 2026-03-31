@@ -1,13 +1,18 @@
+import datetime as dt
 from database import Base
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Column, Integer, String,Date
 
 class User(Base):
     __tablename__ = 'users'
     id = Column(Integer, primary_key=True)
-    email = Column(String, nullable=False, unique=True)
+    email = Column(String, nullable=False, unique=True, index=True)
     first_name = Column(String)
     last_name = Column(String)
-    adobe_user_id = Column(String, nullable=False, unique=True)
+    job_area = Column(String)
+    job_title = Column(String)
+    status = Column(String)
+    sign_user_id = Column(String, nullable=False, unique=True, index=True)
+    last_sync = Column(Date, default=dt.datetime.today(), onupdate=dt.datetime.today())
 
 
 class Group(Base):
