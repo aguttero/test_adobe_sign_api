@@ -19,18 +19,17 @@ SECRETS_FOLDER = "./client_secret/"
 
 # TEST CONFIG
 TOKEN_FILENAME = f"{SECRETS_FOLDER}adbe_dev_token.txt"
+USER_LIST_FILENAME = f"{SECRETS_FOLDER}user_list.txt"
 
-# test_access_token = ""
-
-def refresh_token (client_id, client_secret, refresh_token):
+def refresh_token ():
     endpoint = REFRESH_ENDPOINT
     print(f"Consultando: {endpoint}")
 
     payload = {
             'grant_type': 'refresh_token',
-            'client_id': client_id,
-            'client_secret': client_secret,
-            'refresh_token': refresh_token
+            'client_id': {CLIENT_ID},
+            'client_secret': {CLIENT_SECRET},
+            'refresh_token': {REFRESH_TOKEN}
         }
 
     headers = {
@@ -73,9 +72,10 @@ def get_uris(token):
         return None    
 
 ## TODO FETCH USER LIST
-def fetch_adobe_users(token):
+def fetch_users(token):
     all_users = []
     cursor = None
+    counter = 0
 
     endpoint = FETCH_USER_LIST_ENDPOINT
     print(f"Consultando: {endpoint}")
@@ -83,28 +83,47 @@ def fetch_adobe_users(token):
     headers = {
             'Authorization': f"Bearer {token}"
         }
+    parameters = {
+        'cursor': None
+    }
 
-    try:
-        api_response = requests.get(endpoint, headers=headers)
-        api_response.raise_for_status()
+    while True:
+        try:
+            if cursor:
+                parameters['cursor'] = cursor
+               
+            api_response = requests.get(endpoint, headers=headers, params=parameters)
+            api_response.raise_for_status()
+            
+            # This extends the current page results to all_users list
+            response_data = api_response.json()
+            all_users.extend(response_data['userInfoList'])
+            
+            # Look for next cursor index
+            cursor = response_data.get('page',{}).get('nextCursor')
+
+            print("- - - - - - ")
+            counter +=1
+            print(f"OK Users page {counter}")
+            # print ("all_users:", all_users)
+            print ("Cursor:" , cursor)
+            print("- - - - - - ")
         
-        response_data = api_response.json()
-        all_users.extend(response_data['userInfoList'])
-        print("OK Users page 1")
-        print("- - - - - - ")
-        print ("all_users:", all_users)
-        return all_users
+            if not cursor:
+                break
 
-        #cual es la diferencia en utilizar .extend en lugar de .append en la lista all_users?
+            #cual es la diferencia en utilizar .extend en lugar de .append en la lista all_users?
 
-        # api_base_uri = uris.get("apiAccessPoint")
-        # print(f"{uris}")
-        # return api_base_uri
-        
-    except requests.exceptions.HTTPError as e:
-        print(f"Error: {e.response.status_code} - {e.response.text}")
-        return None    
+            # api_base_uri = uris.get("apiAccessPoint")
+            # print(f"{uris}")
+            # return api_base_uri
+            
+        except requests.exceptions.HTTPError as e:
+            print(f"Error: {e.response.status_code} - {e.response.text}")
+            return None    
 
+    print(f"user_list_len: {len(all_users)}")
+    return all_users
 
 ##
     # while True:
@@ -129,11 +148,16 @@ def test_code():
     # write token to file
     with open (TOKEN_FILENAME, "w", encoding="utf-8") as file:
         file.write(f"{refreshed_token}")
+        print (f"OK write {TOKEN_FILENAME}")
 
-    result = fetch_adobe_users(refreshed_token)
+    result = fetch_users(refreshed_token)
     return result
 
 test_output = test_code()
 print (" L - L - L - L")
-print ("test_output:\n", test_output)
+# print ("test_output:\n", test_output)
+with open (USER_LIST_FILENAME, "w", encoding="utf-8") as file:
+        file.write(f"{test_output}")
+        print (f"OK write {USER_LIST_FILENAME}")
+
 print ("*THE END*")
