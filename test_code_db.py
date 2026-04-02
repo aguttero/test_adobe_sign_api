@@ -1,6 +1,6 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy import Column, Integer, String, DateTime, Date
+from sqlalchemy import Column, Integer, String, Date
 from sqlalchemy.ext.declarative import declarative_base
 import datetime as dt
 
@@ -48,43 +48,71 @@ Base.metadata.create_all(engine)
 Session = sessionmaker(bind=engine)
 session = Session()
 
+# TEST SAFE INSERT
+# V1
+
+# TODO db.py
+# with error management and logging
+# Sample Gemini Code
+def guardar_usuarios_db(usuarios_lista):
+    if not usuarios_lista:
+        return
+    
+    session = Session()
+    try:
+        for u in usuarios_lista:
+            nuevo = User(id=u.get('userId'), ...)
+            session.merge(nuevo)
+        session.commit()
+    except SQLAlchemyError as e:
+        session.rollback()
+        raise e
+    finally:
+        session.close()
+
+
+
+
+
+
 
 # TEST INSERT
-try:
-    new_user = User (
-        email = 'test@email.com',
-        first_name='Charlie', 
-        last_name='Test',
-        status = 'test',
-        sign_user_id = 'sample_user_id_01'
-        )
-    session.add(new_user)
+def try_insert():
+    try:
+        new_user = User (
+            email = 'test@email.com',
+            first_name='Charlie', 
+            last_name='Test',
+            status = 'test',
+            sign_user_id = 'sample_user_id_01'
+            )
+        session.add(new_user)
 
-    # new_user = User (
-    #     email = 'test2@email.com',
-    #     first_name='Charlie2', 
-    #     last_name='Test2',
-    #     status = 'test',
-    #     sign_user_id = 'sample_user_id_2'
-    #     )
-    # session.add(new_user)
+        # new_user = User (
+        #     email = 'test2@email.com',
+        #     first_name='Charlie2', 
+        #     last_name='Test2',
+        #     status = 'test',
+        #     sign_user_id = 'sample_user_id_2'
+        #     )
+        # session.add(new_user)
 
-    # FLUSH to obtain the person id
-    # session.flush()
-    
-    # new_thing = Thing(description='Mouse Pad', value=9.90, owner=new_person.id) # Owner ID inexistente
-    # session.add(new_thing)
+        # FLUSH to obtain the person id
+        # session.flush()
+        
+        # new_thing = Thing(description='Mouse Pad', value=9.90, owner=new_person.id) # Owner ID inexistente
+        # session.add(new_thing)
 
-    session.commit()
-    print ("OK Transaction")
+        session.commit()
+        print ("OK Transaction")
 
-except IntegrityError as e:
-    # Reverts Person and Things update
-    session.rollback()
-    print (f"Error: Integrity: {e}")
-except Exception as e:
-    session.rollback()
-    print (f"Error: Unexpected: {e}")
+    except IntegrityError as e:
+        # Reverts Person and Things update
+        session.rollback()
+        print (f"Error: Integrity: {e}")
+    except Exception as e:
+        session.rollback()
+        print (f"Error: Unexpected: {e}")
 
 # TEST UPDATE
 

@@ -3,3 +3,7 @@
 .env
 client_secret/
 data/
+logs/
+__pycache__/
+*.log
+*.db

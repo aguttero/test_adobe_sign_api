@@ -85,10 +85,10 @@ def fetch_users(token):
         }
     parameters = {
         'cursor': None
-    }
+        }
 
-    while True:
-        try:
+    try:
+        while True:
             if cursor:
                 parameters['cursor'] = cursor
                
@@ -111,16 +111,12 @@ def fetch_users(token):
         
             if not cursor:
                 break
-
-            #cual es la diferencia en utilizar .extend en lugar de .append en la lista all_users?
-
-            # api_base_uri = uris.get("apiAccessPoint")
-            # print(f"{uris}")
-            # return api_base_uri
             
-        except requests.exceptions.HTTPError as e:
-            print(f"Error: {e.response.status_code} - {e.response.text}")
-            return None    
+    except requests.exceptions.HTTPError as e:
+        print(f"Error API: {e.response.status_code} - {e.response.text}")
+            #logging.error(f"Error API: {e}")
+        raise ConnectionError("Error Adobe Sign Api")
+        return None    
 
     print(f"user_list_len: {len(all_users)}")
     return all_users
