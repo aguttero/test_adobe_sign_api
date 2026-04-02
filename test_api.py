@@ -1,12 +1,15 @@
+import logging
 import requests
 from dotenv import dotenv_values
 
-#CONFIG
+# LOGGER CONFIG
+logger = logging.getLogger(__name__)
+
+# API CONFIG
 config = dotenv_values(".env")
 CLIENT_ID = config.get("CLIENT_ID")
 CLIENT_SECRET = config.get("CLIENT_SECRET")
 REFRESH_TOKEN = config.get("REFRESH_TOKEN")
-# ACCESS_TOKEN = config.get("ACCESS_TOKEN")
 SHARD = "na1"
 BASE_URL = f"https://api.{SHARD}.echosign.com"
 
@@ -102,14 +105,12 @@ def fetch_users(token):
             # Look for next cursor index
             cursor = response_data.get('page',{}).get('nextCursor')
 
-            print("- - - - - - ")
             counter +=1
-            print(f"OK Users page {counter}")
-            # print ("all_users:", all_users)
-            print ("Cursor:" , cursor)
-            print("- - - - - - ")
+            logger.debug(f"counter: {counter}")
+            logger.debug (f"cursor: {cursor}")
         
             if not cursor:
+                logger.debug(f"Not cursor: {cursor}")
                 break
             
     except requests.exceptions.HTTPError as e:
@@ -120,18 +121,6 @@ def fetch_users(token):
 
     print(f"user_list_len: {len(all_users)}")
     return all_users
-
-##
-    # while True:
-    #     # Llamada hipotética al SDK o requests
-    #     response = api_client.get_users(cursor=cursor)
-    #     all_users.extend(response['userlist'])
-        
-    #     cursor = response.get('page', {}).get('nextCursor')
-    #     if not cursor:
-    #         break
-            
-    # return all_users
 
 # TEST CODE
 def test_code():

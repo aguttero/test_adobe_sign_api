@@ -1,6 +1,9 @@
 import datetime as dt
-from database import Base
+from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy import Column, Integer, String,Date
+
+class Base (DeclarativeBase):
+    pass
 
 class User(Base):
     __tablename__ = 'users'
