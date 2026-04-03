@@ -53,9 +53,11 @@ logger.debug("Session class start and bind END")
 # with error management and logging
 # Sample Gemini Code
 
-test_user_list = []
-
-def update_users(user_list):
+def update_users(user_list: list[dict]):
+    """Upserts User table using email as the natural key.
+    - INSERTs new users (email not yet in DB).
+    - UPDATEs existing users (matched by email), leaving `id` untouched.
+    """
     # from test_models import User
     if not user_list:
         logger.warning("no user list")
@@ -73,13 +75,15 @@ def update_users(user_list):
     except SQLAlchemyError as e:
         session.rollback()
         logger.error(f"{e}")
-        raise e
+        # raise e
     finally:
         session.close()
+        logger.debug("update_users -> session.close")
 
 
 # TEST INSERT
-def try_insert(dict_item):
+def try_insert(dict_item: dict):
+    """Inserts a single user into User table"""
     #from test_models import User
     session = Session()
     try:

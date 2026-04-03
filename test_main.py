@@ -29,7 +29,8 @@ logger.debug("import test_database as db END")
 
 # UPSERT LIST TO DB
 # TEST DB OPS update user list
-user_list =[]
+user_list =[{'email': 'test@email.com','first_name': 'Charlie','last_name': 'Update','status': 'test','sign_user_id': 'updated_user_id_01'}]
+
 db.update_users(user_list)
 
 # TEST DB OPS insert 1 user
@@ -41,7 +42,7 @@ new_user = {
     'sign_user_id': 'sample_user_id_01'
     }
 
-db.try_insert(new_user)
+# db.try_insert(new_user)
 
 # GET VALID TOKEN
 # active_token = api.refresh_token()
