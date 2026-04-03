@@ -102,3 +102,16 @@ if __name__ == "__main__":
 
     print(result)
     # {"inserted": 2, "updated": 1, "skipped": 1, "errors": [...]}
+
+"""
+Key design decisions
+id is never touched. The payload strips out any id key before the insert or update, so external data can never clobber the internal PK.
+
+Single prefetch, not N+1. All existing emails are loaded in one SELECT email FROM users query at the start, avoiding a round-trip per record.
+Intra-batch deduplication. The existing_emails set is updated after each insert, so if the same email appears twice in user_list, the second occurrence becomes an update rather than a constraint violation.
+
+Per-record error isolation. A try/except around each record calls session.rollback() on failure and continues processing the rest of the batch, collecting errors in the summary dict instead of aborting the whole run.
+
+updated_at stamped automatically. Every touched row (insert or update) gets a UTC timestamp without requiring the caller to include it.
+Returns an actionable summary with counts and error details — useful for logging or alerting in a scheduled job.
+"""
