@@ -6,24 +6,26 @@ logger = logging.getLogger(__name__)
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
-from test_models import User, Base
+logger.debug("from test_models import Base START")
+from test_models import Base, User
+logger.debug("from test_models import Base END")
 
-# from sqlalchemy import Column, Integer, String, Date
-# from sqlalchemy.ext.declarative import declarative_base
-# import datetime as dt
 
 # FOR INTEGRITY ERROR HANDLING
 # from sqlalchemy.exc import IntegrityError
-
 
 # FOR FK ENFORCEMENT IN SQLlite
 # from sqlalchemy import event
 # from sqlalchemy.engine import Engine
 
 # Database file definition
-DB_ENGINE_URL = "sqlite:///./data/test_02.db"
+logger.debug("DB_ENGINE_URL var def START")
+DB_ENGINE_URL = "sqlite:///./data/test_03.db"
+logger.debug("DB_ENGINE_URL var def END")
 
+logger.debug("create_engine START")
 engine = create_engine(DB_ENGINE_URL, echo=True)
+logger.debug("create_engine END")
 
 ## ENABLE FK ENFORCEMENT
 # Needs to be placed after engine creation
@@ -34,11 +36,14 @@ engine = create_engine(DB_ENGINE_URL, echo=True)
 #     cursor.close()
 
 # START DB Engine
+logger.debug("base.metadata.create_all(engine) START")
 Base.metadata.create_all(engine)
-
+logger.debug("base.metadata.create_all(engine) END")
 
 # START Session class
+logger.debug("Session class start and bind START")
 Session = sessionmaker(bind=engine)
+logger.debug("Session class start and bind END")
 # session = Session()
 
 # TEST SAFE INSERT
@@ -51,6 +56,7 @@ Session = sessionmaker(bind=engine)
 test_user_list = []
 
 def update_users(user_list):
+    # from test_models import User
     if not user_list:
         logger.warning("no user list")
         return
@@ -74,6 +80,7 @@ def update_users(user_list):
 
 # TEST INSERT
 def try_insert(dict_item):
+    #from test_models import User
     session = Session()
     try:
         new_user = User (

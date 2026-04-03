@@ -6,7 +6,7 @@ console_handler = logging.StreamHandler()
 console_handler.setLevel(logging.DEBUG)
 
 file_handler = logging.FileHandler("logs/test_log.log")
-file_handler.setLevel(logging.INFO)
+file_handler.setLevel(logging.DEBUG)
 
 # SET GLOBAL Config
 logging.basicConfig(
@@ -20,10 +20,12 @@ logger = logging.getLogger(__name__)
 ## END LOGGER CONFIG
 
 # IMPORT MODULES - AFTER LOGGER CONFIG
-import test_logger as mod
 #import test_api as api
+logger.debug("import test_database as db START")
 import test_database as db
-
+logger.debug("import test_database as db END")
+#from test_database import engine, Base 
+# import test_models
 
 # UPSERT LIST TO DB
 # TEST DB OPS update user list
@@ -47,4 +49,4 @@ db.try_insert(new_user)
 # GET UPDATED USER LIST
 # user_list = api.fetch_users(active_token)
 
-logger.error("Error Main")
+logger.debug("End Main")
