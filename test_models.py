@@ -2,9 +2,12 @@
 import logging
 logger = logging.getLogger(__name__)
 
-import datetime as dt
+from typing import List, Optional
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy import Column, Integer, String,Date
+
+import datetime as dt
 
 logger.debug("class Base creation START")
 class Base (DeclarativeBase):
@@ -14,7 +17,8 @@ logger.debug("class Base creation END")
 logger.debug("class User creation START")
 class User(Base):
     __tablename__ = 'users'
-    id = Column(Integer, primary_key=True)
+    # id = Column(Integer, primary_key=True)
+    id: Mapped[int] = mapped_column(primary_key=True)
     email = Column(String, nullable=False, unique=True, index=True)
     first_name = Column(String)
     last_name = Column(String)
