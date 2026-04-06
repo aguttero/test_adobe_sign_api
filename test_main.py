@@ -31,18 +31,25 @@ logger.debug("import test_database as db END")
 # TEST DB OPS update user list
 user_list =[{'email': 'test@email.com','first_name': 'Charlie','last_name': 'Update','status': 'test','sign_user_id': 'updated_user_id_01'}]
 
-db.update_users(user_list)
+# db.update_users(user_list)
 
 # TEST DB OPS insert 1 user
 new_user = {
-    'email': 'test@email.com',
-    'first_name': 'Charlie', 
-    'last_name': 'Test',
+    'email': 'test3@email.com',
+    'first_name': 'Charlie_3', 
+    'last_name': 'Test_3',
     'status': 'test',
-    'sign_user_id': 'sample_user_id_01'
+    'sign_user_id': 'sample_user_id_03'
     }
 
-# db.try_insert(new_user)
+
+print ("- - - - - -")
+# db.insert_users(new_user)
+# print ("select: ", db.select_user_by_email("test2@email.com"))
+db.update_user_status_by_email("test2@email.com", "updated")
+db.update_user_status_by_email_2("test3@email.com", "updated")
+print ("- - - - - -")
+
 
 # GET VALID TOKEN
 # active_token = api.refresh_token()

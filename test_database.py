@@ -3,7 +3,7 @@
 import logging
 logger = logging.getLogger(__name__)
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 logger.debug("from test_models import Base START")
@@ -20,7 +20,7 @@ logger.debug("from test_models import Base END")
 
 # Database file definition
 logger.debug("DB_ENGINE_URL var def START")
-DB_ENGINE_URL = "sqlite:///./data/test_03.db"
+DB_ENGINE_URL = "sqlite:///./data/test_01.db"
 logger.debug("DB_ENGINE_URL var def END")
 
 logger.debug("create_engine START")
@@ -53,6 +53,36 @@ logger.debug("Session class start and bind END")
 # with error management and logging
 # Sample Gemini Code
 
+def select_user_by_email(searched_email:str) -> User:
+    with Session() as session:
+        result = session.execute(select(User).filter_by(email=searched_email)).scalar_one()
+        return result
+
+def update_user_status_by_email(searched_email:str, new_status:str):
+    with Session() as session:
+        stmt = select(User).filter_by(email=searched_email)
+        user = session.execute(stmt).scalar_one_or_none()
+
+        if user:
+            user.status = new_status
+            session.commit()
+            logger.debug("update ok")
+        else:
+            logger.debug(f"usuario {searched_email} no encontrado")
+
+def update_user_status_by_email_2(searched_email:str, new_status:str):
+    with Session() as session:
+        with session.begin(): #Auto commit / rollback inside this with
+            stmt = select(User).filter_by(email=searched_email)
+            user = session.execute(stmt).scalar_one_or_none()
+
+            if user:
+                user.status = new_status
+                logger.debug("update ok")
+            else:
+                logger.debug(f"usuario {searched_email} no encontrado")
+
+
 def update_users(user_list: list[dict]):
     """Upserts User table using email as the natural key.
     - INSERTs new users (email not yet in DB).
@@ -82,7 +112,7 @@ def update_users(user_list: list[dict]):
 
 
 # TEST INSERT
-def try_insert(dict_item: dict):
+def insert_users(dict_item: dict):
     """Inserts a single user into User table"""
     #from test_models import User
     session = Session()
