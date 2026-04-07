@@ -25,7 +25,7 @@ class User(Base):
     job_area: Mapped[Optional[str]]
     job_title: Mapped[Optional[str]]
     status: Mapped[Optional[str]]
-    sign_user_id: Mapped[str] = mapped_column(nullable=False, unique=True, index=True)
+    adbe_sign_id: Mapped[str] = mapped_column(nullable=False, unique=True, index=True)
     #last_sync = Column(Date, default=dt.datetime.today(), onupdate=dt.datetime.today())
     last_sync: Mapped[dt.date] = mapped_column (Date,
                                                         default=dt.datetime.today, 

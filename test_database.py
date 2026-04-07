@@ -1,8 +1,9 @@
 
-# LOGGER CONFIG
+## LOGGER CONFIG
 import logging
 logger = logging.getLogger(__name__)
 
+from typing import Type, List
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
@@ -14,9 +15,13 @@ logger.debug("from test_models import Base END")
 # FOR INTEGRITY ERROR HANDLING
 # from sqlalchemy.exc import IntegrityError
 
-# FOR FK ENFORCEMENT IN SQLlite
+# FOR FK ENFORCEMENT IN SQLlite via connection event monitoring
 # from sqlalchemy import event
 # from sqlalchemy.engine import Engine
+
+## CONFIG
+
+
 
 # Database file definition
 logger.debug("DB_ENGINE_URL var def START")
@@ -54,11 +59,13 @@ logger.debug("Session class start and bind END")
 # Sample Gemini Code
 
 def select_user_by_email(searched_email:str) -> User:
+    """ Selects single user by email key with session.execute. Returns User instance. ORM 2"""
     with Session() as session:
         result = session.execute(select(User).filter_by(email=searched_email)).scalar_one()
         return result
 
 def update_user_status_by_email(searched_email:str, new_status:str):
+    """ Updates status field of single user by email key. ORM 2"""
     with Session() as session:
         stmt = select(User).filter_by(email=searched_email)
         user = session.execute(stmt).scalar_one_or_none()
@@ -71,6 +78,7 @@ def update_user_status_by_email(searched_email:str, new_status:str):
             logger.debug(f"usuario {searched_email} no encontrado")
 
 def update_user_status_by_email_2(searched_email:str, new_status:str):
+    """ Updates status field of single user by email key. Uses session.begin(). ORM 2"""
     with Session() as session:
         with session.begin(): #Auto commit / rollback inside this with
             stmt = select(User).filter_by(email=searched_email)
@@ -82,9 +90,9 @@ def update_user_status_by_email_2(searched_email:str, new_status:str):
             else:
                 logger.debug(f"usuario {searched_email} no encontrado")
 
-
 def update_users(user_list: list[dict]):
     """Upserts User table using email as the natural key.
+    Uses session.merge
     - INSERTs new users (email not yet in DB).
     - UPDATEs existing users (matched by email), leaving `id` untouched.
     """
@@ -110,10 +118,60 @@ def update_users(user_list: list[dict]):
         session.close()
         logger.debug("update_users -> session.close")
 
+def test_convert_txt_to_list(filename:str) -> list:
+    """Converts file.txt user list to python list"""
+    import ast
 
-# TEST INSERT
-def insert_users(dict_item: dict):
-    """Inserts a single user into User table"""
+    with open (filename, "r") as file:
+        file_content = file.read()
+
+    user_list = ast.literal_eval(file_content)
+    print ("- - - - ")
+    print ("DEBUG PRINT - Function: Convert file.txt to user_list")
+    print ("len user_list:", len(user_list))
+    print (f"{user_list[0]}\n{user_list[1]}\n{user_list[len(user_list)-1]}")
+    print ("- - - - ")
+    
+    return user_list
+
+def test_transform_user_list_keys(input_list: list[dict]) -> list[dict]:
+    """ Transforms user_list dict keys from Adobe Sign API format to app Database format """
+    transformed_list = [{
+        'email': item['email'],
+        'adbe_sign_id': item ['id']
+    }
+    for item in input_list]
+    
+    return transformed_list
+
+# OK TEST 20260407
+def test_bulk_insert_list(input_list):
+# def test_bulk_insert_list(table_class: Type[Base], input_list: List[dict]):
+    """bulk insert list of users ORM 2.0."""
+ 
+    from sqlalchemy import insert
+    with Session() as session:
+        try:
+            session.execute(insert(User), input_list)
+            session.commit()
+            logger.debug("ok bulk insert list")
+        except SQLAlchemyError as e:
+            session.rollback()
+            logger.error(f"func: bulk_insert_list: SQLA error: {e}")
+            # raise DatabaseError()
+        except Exception as e:
+            session.rollback()
+            logger.error(f"func: bulk_insert_list: Exception error: {e}")
+            # raise DatabaseError()
+        finally:
+            if session.is_active:
+                logger.debug(f"session 'is active' status in finally: {session.is_active}")
+    logger.debug("pasa por aca?")
+    logger.debug(f"session 'is active' status at end: {session.is_active}")
+
+# OK - TEST INSERT - 20260407
+def insert_users_session_add(dict_item: dict):
+    """Inserts a single dict user into User table with session add"""
     #from test_models import User
     session = Session()
     try:
@@ -122,7 +180,7 @@ def insert_users(dict_item: dict):
             first_name = dict_item.get('first_name'),
             last_name = dict_item.get('last_name'),
             status = dict_item.get('status'),
-            sign_user_id = dict_item.get('sign_user_id')
+            adbe_sign_id = dict_item.get('adbe_sign_id')
             )
         session.add(new_user)
 
@@ -158,6 +216,7 @@ def insert_users(dict_item: dict):
         # raise Exception (f"{e}", params="params", orig="orig")
     finally:
         session.close()
+        logger.debug(f"session 'is_active' status in sesssion add: {session.is_active}")
         logger.info("FINALLY!!")
 
 # TEST UPDATE
