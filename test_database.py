@@ -134,6 +134,7 @@ def test_convert_txt_to_list(filename:str) -> list:
     
     return user_list
 
+# TEST OK 20260407
 def test_transform_user_list_keys(input_list: list[dict]) -> list[dict]:
     """ Transforms user_list dict keys from Adobe Sign API format to app Database format """
     transformed_list = [{
@@ -145,14 +146,14 @@ def test_transform_user_list_keys(input_list: list[dict]) -> list[dict]:
     return transformed_list
 
 # OK TEST 20260407
-def test_bulk_insert_list(input_list):
+def test_bulk_insert_list(table_class: Type[Base], input_list: list[dict]):
 # def test_bulk_insert_list(table_class: Type[Base], input_list: List[dict]):
     """bulk insert list of users ORM 2.0."""
  
     from sqlalchemy import insert
     with Session() as session:
         try:
-            session.execute(insert(User), input_list)
+            session.execute(insert(table_class), input_list)
             session.commit()
             logger.debug("ok bulk insert list")
         except SQLAlchemyError as e:

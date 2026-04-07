@@ -64,7 +64,7 @@ print ("- - - - - -")
 print("transformed_list: ", result)
 print("transformed_list_len: ", len(result))
 print ("- - - - - -")
-db.test_bulk_insert_list(result)
+db.test_bulk_insert_list(dbmodels.User,result)
 
 # print ("select: ", db.select_user_by_email("test2@email.com"))
 # db.update_user_status_by_email("test2@email.com", "updated")
