@@ -51,12 +51,6 @@ Session = sessionmaker(bind=engine)
 logger.debug("Session class start and bind END")
 # session = Session()
 
-# TEST SAFE INSERT
-# V1
-
-# TODO db.py
-# with error management and logging
-# Sample Gemini Code
 
 def select_user_by_email(searched_email:str) -> User:
     """ Selects single user by email key with session.execute. Returns User instance. ORM 2"""
@@ -118,14 +112,17 @@ def update_users(user_list: list[dict]):
         session.close()
         logger.debug("update_users -> session.close")
 
+# TODO add TRY and Logger ok and error
 def test_convert_txt_to_list(filename:str) -> list:
     """Converts file.txt user list to python list"""
     import ast
 
     with open (filename, "r") as file:
         file_content = file.read()
+        logger.debug(f"OK Read: {filename} - {len(file_content)} chars")
 
     user_list = ast.literal_eval(file_content)
+    logger.debug(f"OK Assign to list {len(user_list)} items")
     print ("- - - - ")
     print ("DEBUG PRINT - Function: Convert file.txt to user_list")
     print ("len user_list:", len(user_list))
@@ -134,43 +131,40 @@ def test_convert_txt_to_list(filename:str) -> list:
     
     return user_list
 
-# TEST OK 20260407
+# OK TEST 20260407 - #TODO add error check Typemismatch
 def test_transform_user_list_keys(input_list: list[dict]) -> list[dict]:
-    """ Transforms user_list dict keys from Adobe Sign API format to app Database format """
+    """ Transforms user_list dict keys from Adobe Sign API format to app Database format. Strips and lowercases email addresses """
     transformed_list = [{
-        'email': item['email'],
+        'email': item['email'].strip().lower(),
         'adbe_sign_id': item ['id']
     }
     for item in input_list]
-    
+    logger.debug(f"OK Transformed {len(transformed_list)} records")
     return transformed_list
 
-# OK TEST 20260407
-def test_bulk_insert_list(table_class: Type[Base], input_list: list[dict]):
+# OK TEST 20260407 - #TODO Raise Error to Main
+def bulk_insert_list(table_name: Type[Base], input_list: list[dict]):
 # def test_bulk_insert_list(table_class: Type[Base], input_list: List[dict]):
-    """bulk insert list of users ORM 2.0."""
+    """bulk insert input_list into table for initial table load ORM 2.0."""
  
     from sqlalchemy import insert
     with Session() as session:
         try:
-            session.execute(insert(table_class), input_list)
+            session.execute(insert(table_name), input_list)
             session.commit()
-            logger.debug("ok bulk insert list")
+            logger.debug(f"OK insert {len(input_list)} records")
         except SQLAlchemyError as e:
             session.rollback()
-            logger.error(f"func: bulk_insert_list: SQLA error: {e}")
+            logger.error(f"SQLA error: {e}")
             # raise DatabaseError()
         except Exception as e:
             session.rollback()
-            logger.error(f"func: bulk_insert_list: Exception error: {e}")
+            logger.error(f"Exception error: {e}")
             # raise DatabaseError()
         finally:
-            if session.is_active:
-                logger.debug(f"session 'is active' status in finally: {session.is_active}")
-    logger.debug("pasa por aca?")
-    logger.debug(f"session 'is active' status at end: {session.is_active}")
+            logger.debug(f"OK finally section")
 
-# OK - TEST INSERT - 20260407
+# OK TEST INSERT - 20260407 -> Deprecate
 def insert_users_session_add(dict_item: dict):
     """Inserts a single dict user into User table with session add"""
     #from test_models import User
@@ -219,6 +213,30 @@ def insert_users_session_add(dict_item: dict):
         session.close()
         logger.debug(f"session 'is_active' status in sesssion add: {session.is_active}")
         logger.info("FINALLY!!")
+
+# TODO Upsert users
+#def insert_new_items_by_email_key(table_class: Type[Base], input_list: list[dict]):
+def insert_new_items_by_email_key(input_list: list[dict]):
+    # Generate email list from database
+    with Session() as session:
+        existing_email_list = session.execute(select(User.email)).scalars().all()
+    logger.debug(f"OK Read {len(existing_email_list)} records")
+    print ("exisiting_user_email_list:" ,existing_email_list)
+
+    # Determine new users to insert
+        # Compare to new email list with existing email list
+    new_users_list = []
+    for item in input_list:
+        if item['email'] not in existing_email_list:
+            new_users_list.append(item)
+    logger.debug(f"OK Compare {len(new_users_list)} records")
+    print ("new_user_list:" ,new_users_list)
+    
+    # Bulk insert new users
+    bulk_insert_list(User, new_users_list)
+
+
+
 
 # TEST UPDATE
 

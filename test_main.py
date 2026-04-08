@@ -1,4 +1,4 @@
-# LOGGER CONFIG
+# LOGGER GLOBAL CONFIG
 import logging
 
 # SET LEVEL for each Handler
@@ -11,7 +11,7 @@ file_handler.setLevel(logging.DEBUG)
 # SET GLOBAL Config
 logging.basicConfig(
     level=logging.DEBUG,
-    format='%(asctime)s:%(name)s:%(levelname)s:%(message)s',
+    format='%(asctime)s [%(levelname)s] %(module)s:%(funcName)s - %(message)s',
     handlers=[console_handler,file_handler]
 )
 
@@ -32,8 +32,8 @@ logger.debug("import test_database as db END")
 # TEST DB OPS update user list
 # user_list =[{'email': 'test2@email.com','first_name': 'Charlie','last_name': 'Update','status': 'test','sign_account_id': 'sample_user_id_02'}]
 
+## TEST DATA
 user_list_2 =[{'email': 'test2@email.com','first_name': 'Charlie','last_name': 'Update','status': 'test','id': 'sample_user_id_02'}]
-
 # db.update_users(user_list)
 
 # TEST DB OPS insert 1 user
@@ -44,6 +44,7 @@ new_user = {
     'status': 'test',
     'adbe_sign_id': 'sample_user_id_03'
     }
+# db.insert_users_session_add(new_user)
 
 ## TEST CONFIG
 SECRETS_FOLDER = "./client_secret/"
@@ -53,18 +54,23 @@ TEST_USER_LIST_FILENAME = f"{SECRETS_FOLDER}test_user_list.txt"
 
 ## RUN TEST CODE
 print ("- - - - - -")
+# LOAD user_list FROM FILE
 user_list = db.test_convert_txt_to_list(TEST_USER_LIST_FILENAME)
-
-# print("Main: user_list:", user_list)
 print ("- - - - - -")
 
-# db.insert_users_session_add(new_user)
-result = db.test_transform_user_list_keys(user_list)
-print ("- - - - - -")
-print("transformed_list: ", result)
-print("transformed_list_len: ", len(result))
-print ("- - - - - -")
-db.test_bulk_insert_list(dbmodels.User,result)
+
+# TRANSFORM user_list DICT KEY names to match Table 
+transformed_user_list = db.test_transform_user_list_keys(user_list)
+print("transformed_list: ", transformed_user_list[3])
+print("transformed_list_len: ", len(transformed_user_list))
+
+# BULK INSERT recors in User class Table
+# db.bulk_insert_list(dbmodels.User,result)
+
+#### -> INSERT NEW USERS by email KEY
+# test_user_list = []
+db.insert_new_items_by_email_key(transformed_user_list)
+
 
 # print ("select: ", db.select_user_by_email("test2@email.com"))
 # db.update_user_status_by_email("test2@email.com", "updated")
