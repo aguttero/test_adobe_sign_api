@@ -30,10 +30,12 @@ logger.debug("import test_database as db END")
 # import test_models
 
 ## DB HEALTH VALIDATION
-with open ("/data/db_health.txt","w") as file:
+with open ("./data/db_health.txt","r+") as file:
     db_health_data = file.read()
     logger.debug(f"DB Health file value: {db_health_data}")
+    file.seek(0)
     file.write("db_closed_status = 'Test - pending implementation'")
+    file.truncate()
 
 ## DEFINE RANGE DATE TO SEARCH
 # GET LAST RANGE END DATE
@@ -48,18 +50,8 @@ new_end_date_str = f"{new_end_date.date}T00:00:00Z"
 # user_list =[{'email': 'test2@email.com','first_name': 'Charlie','last_name': 'Update','status': 'test','sign_account_id': 'sample_user_id_02'}]
 
 ## TEST DATA
-user_list_2 =[{'email': 'test2@email.com','first_name': 'Charlie','last_name': 'Update','status': 'test','id': 'sample_user_id_02'}]
+# user_list_2 =[{'email': 'test2@email.com','first_name': 'Charlie','last_name': 'Update','status': 'test','id': 'sample_user_id_02'}]
 # db.update_users(user_list)
-
-# TEST DB OPS insert 1 user
-new_user = {
-    'email': 'test3@email.com',
-    'first_name': 'Charlie_3', 
-    'last_name': 'Test_3',
-    'status': 'test',
-    'adbe_sign_id': 'sample_user_id_03'
-    }
-# db.insert_users_session_add(new_user)
 
 ## TEST CONFIG
 SECRETS_FOLDER = "./client_secret/"
@@ -78,9 +70,6 @@ print ("- - - - - -")
 transformed_user_list = db.test_transform_user_list_keys(user_list)
 print("transformed_list: ", transformed_user_list[3])
 print("transformed_list_len: ", len(transformed_user_list))
-
-# BULK INSERT recors in User class Table
-# db.bulk_insert_list(dbmodels.User,result)
 
 #### -> INSERT NEW USERS by email KEY
 # test_user_list = []

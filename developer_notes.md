@@ -137,4 +137,15 @@ CREATE TABLE agreement (
 )
 CREATE UNIQUE INDEX ix_agreement_agreement_id ON agreement (agreement_id)
 
+CREATE TABLE sync_history (
+	id INTEGER NOT NULL, 
+	run_date DATE NOT NULL, 
+	range_start VARCHAR NOT NULL, 
+	range_end VARCHAR NOT NULL, 
+	agreements_found INTEGER NOT NULL, 
+	sync_ok BOOLEAN NOT NULL, 
+	PRIMARY KEY (id)
+)
+
+
 ```

@@ -66,7 +66,7 @@ class SyncHistory(Base):
     range_start: Mapped[str]
     range_end: Mapped[str]
     agreements_found: Mapped[int] = mapped_column(default=0)
-    sync_status: Mapped[bool]
+    sync_ok: Mapped[bool]
 
 
 
