@@ -1,0 +1,62 @@
+{
+ "example_1":   
+    {
+    "scope": [
+        "AGREEMENT_ASSETS"
+    ],
+    "agreementAssetsCriteria": {
+        "type": [
+        "AGREEMENT"
+        ],
+        "createdDate": {
+        "range": {
+            "gt": "2026-03-01T00:00:00-04:00"
+        }
+        },
+        "startIndex": 0,
+        "status": ["SIGNED"],
+        "pageSize": 100,
+        "sortByField":"CREATED_DATE",
+        "sortOrder":"ASC"
+    }
+    },
+
+"example_2": 
+    {
+    "agreementAssetsCriteria": {
+        "type": [
+        "AGREEMENT"
+        ],
+        "createdDate": {
+            "range": {
+                "min": "string",
+                "max": "string",
+                "lt": "string",
+                "gt": "string"
+            }
+        }
+    }
+    },
+    "example_3":
+    {
+  "scope": [
+    "AGREEMENT_ASSETS"
+  ],
+  "agreementAssetsCriteria": {
+    "type": [
+      "AGREEMENT"
+    ],
+    "createdDate": {
+      "range": {
+        "min": "2026-03-01T00:00:00Z",
+        "max": "2026-03-31T23:59:59Z"
+      }
+    },
+    "startIndex": 0,
+    "status": ["SIGNED"],
+    "pageSize": 100,
+    "sortByField":"CREATED_DATE",
+    "sortOrder":"ASC"
+  }
+}
+}

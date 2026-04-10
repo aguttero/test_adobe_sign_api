@@ -5,7 +5,7 @@ logger = logging.getLogger(__name__)
 from typing import List, Optional
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy import ForeignKey, Date, false
+from sqlalchemy import ForeignKey, Date
 
 import datetime as dt
 
@@ -58,6 +58,17 @@ class Agreement(Base):
 
     def __repr__(self):
         return f"Agreement(name={self.name!r}, status={self.status!r}, created_date={self.created_date!r}, id={self.id!r})"
+
+class SyncHistory(Base):
+    __tablename__ = "sync_history"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    run_date: Mapped[dt.date]
+    range_start: Mapped[str]
+    range_end: Mapped[str]
+    agreements_found: Mapped[int] = mapped_column(default=0)
+    sync_status: Mapped[bool]
+
+
 
 logger.debug("End test Models.py")
 

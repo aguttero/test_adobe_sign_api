@@ -122,9 +122,13 @@ def fetch_users(token):
     print(f"user_list_len: {len(all_users)}")
     return all_users
 
+def search_new_agreements(token,user_email,start_date,end_date):
+    pass
+
+
 # TEST CODE
 def test_code():
-    refreshed_token = refresh_token(CLIENT_ID, CLIENT_SECRET, REFRESH_TOKEN)
+    refreshed_token = refresh_token()
     # refreshed_token = test_access_token
 
     # test_api_base_uri = get_uris(refreshed_token)

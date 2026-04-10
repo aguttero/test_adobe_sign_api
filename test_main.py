@@ -1,5 +1,6 @@
 # LOGGER GLOBAL CONFIG
 import logging
+from datetime import datetime, timedelta
 
 # SET LEVEL for each Handler
 console_handler = logging.StreamHandler()
@@ -27,6 +28,20 @@ import test_database as db
 logger.debug("import test_database as db END")
 #from test_database import engine, Base 
 # import test_models
+
+## DB HEALTH VALIDATION
+with open ("/data/db_health.txt","w") as file:
+    db_health_data = file.read()
+    logger.debug(f"DB Health file value: {db_health_data}")
+    file.write("db_closed_status = 'Test - pending implementation'")
+
+## DEFINE RANGE DATE TO SEARCH
+# GET LAST RANGE END DATE
+last_end_date_str = "2026-03-01T00:00:00Z"
+new_start_date_str = last_end_date_str
+new_end_date = datetime.fromisoformat(last_end_date_str) + timedelta(days=7)
+new_end_date_str = f"{new_end_date.date}T00:00:00Z"
+
 
 # UPSERT LIST TO DB
 # TEST DB OPS update user list
