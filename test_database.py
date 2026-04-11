@@ -20,9 +20,6 @@ logger.debug("from test_models import Base END")
 # from sqlalchemy.engine import Engine
 
 ## CONFIG
-
-
-
 # Database file definition
 logger.debug("DB_ENGINE_URL var def START")
 DB_ENGINE_URL = "sqlite:///./data/test_01.db"
@@ -51,6 +48,19 @@ Session = sessionmaker(bind=engine)
 logger.debug("Session class start and bind END")
 # session = Session()
 
+# TODO implement check at the end of Main
+def check_db_last_closed_status():
+    with open ("./data/db_health.txt","r+") as file:
+        db_health_data = file.read()
+        logger.debug(f"DB Health file value: {db_health_data}")
+        file.seek(0)
+        file.write("db_closed_status = 'Test - pending implementation'")
+        file.truncate()
+        if db_health_data == False:
+            logger.warning(f"DB_SHUTDOWN_ERROR: The database did not reach a clean state during the last execution")
+            return False
+        else:
+            return True
 
 def select_user_by_email(searched_email:str) -> User:
     """ Selects single user by email key with session.execute. Returns User instance. ORM 2"""

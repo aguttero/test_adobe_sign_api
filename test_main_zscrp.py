@@ -21,39 +21,28 @@ logger = logging.getLogger(__name__)
 ## END LOGGER CONFIG
 
 # IMPORT MODULES - AFTER LOGGER CONFIG
+#import test_api as api
 logger.debug("import test_database as db START")
 import test_models as dbmodels
 import test_database as db
 logger.debug("import test_database as db END")
-
+#from test_database import engine, Base 
+# import test_models
 
 ## DB HEALTH VALIDATION
-# TODO implement DB closed ok check at the end of main
-db_health_ok = db.check_db_last_closed_status()
-if not db_health_ok:
-    # TODO Define DB Recovery Action
-    pass
+with open ("./data/db_health.txt","r+") as file:
+    db_health_data = file.read()
+    logger.debug(f"DB Health file value: {db_health_data}")
+    file.seek(0)
+    file.write("db_closed_status = 'Test - pending implementation'")
+    file.truncate()
 
 ## DEFINE RANGE DATE TO SEARCH
-# Search range is 7 days. From Sunday 00 UTC to Sunday 00 UTC
-# Search runs Sunday 05AM UTC
-# TODO GET LAST RANGE END DATE
-last_end_date_str = "2026-03-01T00:00:00Z" # Read this date_str from DB Exec Log
-new_start_range_date_str = last_end_date_str
-new_range_end_date = datetime.fromisoformat(last_end_date_str) + timedelta(days=7)
-new_range_end_date_str = f"{new_range_end_date.date}T00:00:00Z"
-
-# VALIDATE search range is in the past
-datetime_today = datetime.today()
-naive_new_end_range_date = datetime.fromisoformat(new_range_end_date_str.replace("T00:00:00Z"," 00:00:00"))
-print ("- - - - ")
-if datetime_today >= naive_new_end_range_date:
-    print (f"OK to run search. Naive range end datetime: {naive_new_end_range_date}")
-    logger.debug(f"OK Range end date in the past. Naive range end datetime: {naive_new_end_range_date}")
-else:
-    print ("ERROR - Reschedule Chron")
-    logger.critical(f"RUM DATE ERROR: Search Range NOT in the PAST - CHECK MAIN RUN CHRON. Naive range end datetime > dateime.now(): {naive_new_end_range_date}")
-
+# GET LAST RANGE END DATE
+last_end_date_str = "2026-03-01T00:00:00Z"
+new_start_date_str = last_end_date_str
+new_end_date = datetime.fromisoformat(last_end_date_str) + timedelta(days=7)
+new_end_date_str = f"{new_end_date.date}T00:00:00Z"
 
 
 # UPSERT LIST TO DB
