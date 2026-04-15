@@ -1,5 +1,5 @@
-import test_api as api
-import test_database as dbmgr
+import tests.test_api as api
+import tests.test_database as dbmgr
 
 active_token = api.refresh_token()
 

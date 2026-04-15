@@ -6,7 +6,8 @@ from datetime import datetime, timedelta
 console_handler = logging.StreamHandler()
 console_handler.setLevel(logging.DEBUG)
 
-file_handler = logging.FileHandler("logs/test_log.log")
+# file_handler = logging.FileHandler("logs/test_log.log")
+file_handler = logging.FileHandler("tests/logs/test_log.log")
 file_handler.setLevel(logging.DEBUG)
 
 # SET GLOBAL Config
@@ -22,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 # IMPORT MODULES - AFTER LOGGER CONFIG
 logger.debug("import test_database as db START")
+#import tests.test_models as dbmodels
 import test_models as dbmodels
 import test_database as db
 logger.debug("import test_database as db END")
@@ -41,7 +43,7 @@ if not db_health_ok:
 last_end_date_str = "2026-03-01T00:00:00Z" # Read this date_str from DB Exec Log
 new_start_range_date_str = last_end_date_str
 new_range_end_date = datetime.fromisoformat(last_end_date_str) + timedelta(days=7)
-new_range_end_date_str = f"{new_range_end_date.date}T00:00:00Z"
+new_range_end_date_str = f"{new_range_end_date.date()}T00:00:00Z"
 
 # VALIDATE search range is in the past
 datetime_today = datetime.today()
@@ -65,7 +67,7 @@ else:
 # db.update_users(user_list)
 
 ## TEST CONFIG
-SECRETS_FOLDER = "./client_secret/"
+SECRETS_FOLDER = "client_secret/"
 USER_LIST_FILENAME = f"{SECRETS_FOLDER}user_list.txt"
 TEST_USER_LIST_FILENAME = f"{SECRETS_FOLDER}test_user_list.txt"
 
@@ -79,7 +81,6 @@ print ("- - - - - -")
 
 # TRANSFORM user_list DICT KEY names to match Table 
 transformed_user_list = db.test_transform_user_list_keys(user_list)
-print("transformed_list: ", transformed_user_list[3])
 print("transformed_list_len: ", len(transformed_user_list))
 
 #### -> INSERT NEW USERS by email KEY

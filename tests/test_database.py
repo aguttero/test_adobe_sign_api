@@ -22,7 +22,7 @@ logger.debug("from test_models import Base END")
 ## CONFIG
 # Database file definition
 logger.debug("DB_ENGINE_URL var def START")
-DB_ENGINE_URL = "sqlite:///./data/test_01.db"
+DB_ENGINE_URL = "sqlite:///tests/data/test_01.db"
 logger.debug("DB_ENGINE_URL var def END")
 
 logger.debug("create_engine START")
@@ -50,7 +50,7 @@ logger.debug("Session class start and bind END")
 
 # TODO implement check at the end of Main
 def check_db_last_closed_status():
-    with open ("./data/db_health.txt","r+") as file:
+    with open ("tests/data/db_health.txt","r+") as file:
         db_health_data = file.read()
         logger.debug(f"DB Health file value: {db_health_data}")
         file.seek(0)
@@ -136,9 +136,7 @@ def test_convert_txt_to_list(filename:str) -> list:
     print ("- - - - ")
     print ("DEBUG PRINT - Function: Convert file.txt to user_list")
     print ("len user_list:", len(user_list))
-    print (f"{user_list[0]}\n{user_list[1]}\n{user_list[len(user_list)-1]}")
     print ("- - - - ")
-    
     return user_list
 
 # OK TEST 20260407 - #TODO add error check Typemismatch

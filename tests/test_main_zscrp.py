@@ -23,8 +23,8 @@ logger = logging.getLogger(__name__)
 # IMPORT MODULES - AFTER LOGGER CONFIG
 #import test_api as api
 logger.debug("import test_database as db START")
-import test_models as dbmodels
-import test_database as db
+import tests.test_models as dbmodels
+import tests.test_database as db
 logger.debug("import test_database as db END")
 #from test_database import engine, Base 
 # import test_models
