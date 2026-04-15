@@ -32,7 +32,7 @@ Adobe Sign API. Exports to dashboard.csv. Stack: Python 3.11+, SQLAlchemy, SQLit
 - Use Python's built-in `logging` module (not print statements)
 - Log levels: DEBUG for API responses, INFO for operations, WARNING for
   retries, ERROR for failures
-- Log format: timestamp | level | module | message
+- Log format: timestamp [level] module:function - message
 
 ## Testing
 - Run tests with: `pytest tests/`
