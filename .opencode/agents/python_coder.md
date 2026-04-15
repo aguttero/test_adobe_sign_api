@@ -23,6 +23,7 @@ permission:
     "> /dev/*": "deny"
     "curl * | bash": "deny
   edit:
+    "*.py": "ask"
     "**/*.env*": "deny"
     "**/*.key": "deny"
     "**/*.secret": "deny"

@@ -1,50 +1,47 @@
-# Project: Adobe Sign Signature Dashboard
+# Project: Adobe Sign Dashboard
 
-## Project Overview
-Weekly signature status dashboard. Tracks ~1,500 documents/month via
-Adobe Sign API. Exports to dashboard.csv. Stack: Python 3.11+, SQLAlchemy, SQLite, REST API calls.
+## Stack
+- Python 3.13+, SQLAlchemy 2.0+, SQLite
+- Adobe Sign REST API (shard: na1)
 
-## Module Structure
-- `main.py` — orchestration, scheduler, entry point
-- `models.py`- all DB Table definitions and relationships
-- `database.py` — all SQLite read/write operations
-- `api.py` — Adobe Sign API calls and response parsing
-- `log_reader.py` — parses logs, generates alerts
-
-## Coding Standards
-- Use Python type hints on all function signatures
-- Docstrings on every function (one-line summary + params)
-- No hardcoded credentials — always load from .env via python-dotenv
-- Functions should do one thing (max ~30 lines)
-- Handle all API exceptions explicitly, never bare `except:`
-
-## Security Rules
-- NEVER read or modify: .env, credentials/, data/*.db, logs/
-- NEVER suggest printing or logging credential values
-- NEVER inline API keys or tokens in code
-
-## Database Conventions
-- All DB access goes through db_ops.py — no raw sqlite3 calls in other modules
-- Use parameterized queries only (no string formatting in SQL)
-- Always close connections in a finally block or use context managers
-
-## Error Handling & Logging
-- Use Python's built-in `logging` module (not print statements)
-- Log levels: DEBUG for API responses, INFO for operations, WARNING for
-  retries, ERROR for failures
-- Log format: timestamp [level] module:function - message
+## Module Structure (verified)
+- `main.py` — orchestration entry point (sparse stub)
+- `models.py` — User table definition only
+- `database.py` — SQLAlchemy engine setup only
+- `api.py` — token refresh + test code that writes to file
 
 ## Testing
-- Run tests with: `pytest tests/`
-- Each module has a corresponding test file: test_database.py, etc.
-- Mock all external API calls in tests (never hit real Adobe Sign in tests)
+Tests use **test-prefixed modules** in `tests/` folder — not pytest:
+```bash
+cd tests && python test_main.py      # runs with test_database, test_models
+cd tests && python test_api.py    # runs api tests
+```
+- Test DB: `tests/data/test_01.db`
+- Test logs: `tests/logs/test_log.log`
+- Credentials: `client_secret/test_user_list.txt`
+
+## Critical Conventions
+- **Run from `tests/`**: imports `test_models` and `test_database` as test-prefixed modules
+- Credentials via `.env` (root) + `client_secret/` folder
+- Token file: `client_secret/adbe_dev_token.txt` (written by test run)
+- DB URL in tests: `sqlite:///tests/data/test_01.db`
+
+## Security
+- NEVER read/modify: `.env`, `client_secret/`, `data/*.db`, `logs/`
+- NEVER log credential values
 
 ## Dependencies
-- Install with: `pip install -r sqlalch_api_reqs.txt`
-- Key packages: requests, python-dotenv, pytest, schedule, SQLAlchemy
+```bash
+pip install -r sqlalch_api_reqs.txt
+```
 
 ## Developer Commands
-
 ```bash
-python /tests/test_main.py
+cd tests && python test_main.py    # main test runner
+cd tests && python test_api.py    # api token refresh test
 ```
+
+## Important Notes
+- `log_reader.py` doesn't exist yet
+- Root modules are incomplete scaffolding — real logic is in `tests/` copies
+- `.gitignore` excludes: `.env`, `client_secret/`, `data/`, `logs/`, `*.db`, `*.log`
