@@ -1,47 +1,31 @@
-# Project: Adobe Sign Dashboard
+# Project: Adobe Sign Signature Dashboard
 
-## Stack
-- Python 3.13+, SQLAlchemy 2.0+, SQLite
-- Adobe Sign REST API (shard: na1)
+## Project Overview
+Status: WIP - Work in Progress
+Weekly signature status dashboard. Tracks ~1,500 documents/month via
+Adobe Sign API. Exports to dashboard.csv. Stack: Python 3.11+, SQLAlchemy, SQLite, REST API calls.
 
-## Module Structure (verified)
-- `main.py` — orchestration entry point (sparse stub)
-- `models.py` — User table definition only
-- `database.py` — SQLAlchemy engine setup only
-- `api.py` — token refresh + test code that writes to file
+## Development modules
+located in `tests`
+ignore code in `src`, `tests/old_modules`, `tests/zscrappping_code`
 
-## Testing
-Tests use **test-prefixed modules** in `tests/` folder — not pytest:
-```bash
-cd tests && python test_main.py      # runs with test_database, test_models
-cd tests && python test_api.py    # runs api tests
-```
-- Test DB: `tests/data/test_01.db`
-- Test logs: `tests/logs/test_log.log`
-- Credentials: `client_secret/test_user_list.txt`
+## Agent Guidelines
+use `.opencode/agents/python_coder.md`
 
-## Critical Conventions
-- **Run from `tests/`**: imports `test_models` and `test_database` as test-prefixed modules
-- Credentials via `.env` (root) + `client_secret/` folder
-- Token file: `client_secret/adbe_dev_token.txt` (written by test run)
-- DB URL in tests: `sqlite:///tests/data/test_01.db`
+## Project TODO List
+* Generate an implementation plan for the following tasks:
+* fetch all users from Adobe Sign API
+* insert only new users in DB Users table. 
+    * Use email for comparison of new users vs exisitng users 
+    * To improve performance, first obtain the existing email list for all users in the Users table
+    * insert to DB only users that are not in the existing email list. insert email and adbe_sing_id ('email' and 'id' in the adobe user api response)
 
-## Security
-- NEVER read/modify: `.env`, `client_secret/`, `data/*.db`, `logs/`
-- NEVER log credential values
-
-## Dependencies
-```bash
-pip install -r sqlalch_api_reqs.txt
-```
-
-## Developer Commands
-```bash
-cd tests && python test_main.py    # main test runner
-cd tests && python test_api.py    # api token refresh test
-```
-
-## Important Notes
-- `log_reader.py` doesn't exist yet
-- Root modules are incomplete scaffolding — real logic is in `tests/` copies
-- `.gitignore` excludes: `.env`, `client_secret/`, `data/`, `logs/`, `*.db`, `*.log`
+## Agent task:
+Analyze this codebase to create a comprehensive AGENTS.md file. Scan the project structure, configuration files (e.g., package.json, tsconfig.json, docker-compose.yml), and existing documentation.
+Generate the file with these sections:
+Project Overview: A one-sentence summary of the project's purpose and tech stack.
+Project Structure: Map key directories and their responsibilities.
+Critical Commands: List exact commands for build, lint, test, and typecheck.
+Coding Conventions: Identify naming patterns (e.g., camelCase vs PascalCase), preferred libraries, and architectural rules (e.g., use interfaces over types). Use `.opencode/agents/python_coder.md` agent guidelines
+Operational Boundaries: Define what files or services I should NOT modify.
+Focus only on information that is not obvious from filenames alone. Prioritize brevity for machine parsing
