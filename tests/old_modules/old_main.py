@@ -1,3 +1,4 @@
+# old_main.py v20240417am
 """
 Adobe Sign Dashboard Test Runner.
 
@@ -8,17 +9,16 @@ for the Adobe Sign API integration.
 import logging
 from datetime import datetime, timedelta
 from typing import Optional
-import test_api as api
 
 # Module-level constants
 SECRETS_FOLDER: str = "client_secret/"
 USER_LIST_FILENAME: str = f"{SECRETS_FOLDER}user_list.txt"
-TEST_USER_LIST_FILENAME: str = f"{SECRETS_FOLDER}test_user_list_v02.txt"
+TEST_USER_LIST_FILENAME: str = f"{SECRETS_FOLDER}test_user_list.txt"
 
 # TODO: Replace hardcoded date with config or DB value
 DEFAULT_LAST_DATE_RANGE_END: str = "2026-03-01T00:00:00Z"
 
-### LOGGER CONFIG ###
+# Logger configuration
 console_handler: logging.StreamHandler = logging.StreamHandler()
 console_handler.setLevel(logging.DEBUG)
 
@@ -33,9 +33,6 @@ logging.basicConfig(
 
 logger: logging.Logger = logging.getLogger(__name__)
 logger.debug("Logging configured successfully")
-### END LOGGER CONFIGURATION ###
-
-
 
 # TODO refactor/move to test_utils.py
 def compute_search_date_range(last_end_date_str: str) -> tuple[str, str]:
@@ -55,7 +52,6 @@ def compute_search_date_range(last_end_date_str: str) -> tuple[str, str]:
     return last_end_date_str, end_date_str
 
 
-# TODO refactor/move to test_utils.py
 def validate_range_in_past(range_end_date_str: str) -> bool:
     """
     Validate that the search range end date is in the past.
@@ -83,7 +79,6 @@ def validate_range_in_past(range_end_date_str: str) -> bool:
 
 def test_run_user_sync_process(db_module) -> None:
     """
-    Test function to load test data into DB 
     Execute the user list synchronization process.
 
     Args:
@@ -92,7 +87,7 @@ def test_run_user_sync_process(db_module) -> None:
     # Fetch user email and user adobe_sign_id from Adobe Sign API /users endpoint
     
 
-    # TEST DATA Load user list from file
+    # Load user list from file
     user_list: list[dict] = db_module.test_convert_txt_to_list(TEST_USER_LIST_FILENAME)
     logger.debug(f"Loaded {len(user_list)} users from file")
 
@@ -103,6 +98,51 @@ def test_run_user_sync_process(db_module) -> None:
     # Insert new users by email key
     db_module.insert_new_items_by_email_key(transformed_user_list)
     logger.debug("User sync process completed")
+
+
+def fetch_and_persist_agreements(
+    db_module,
+    api_module,
+    start_date_str: str,
+    end_date_str: str
+) -> tuple[int, int]:
+    """
+    Fetch agreements for all users and persist to database.
+    
+    Args:
+        db_module: Database module with agreement operations.
+        api_module: API module with search and mapping functions.
+        start_date_str: ISO format start date for date range filter.
+        end_date_str: ISO format end date for date range filter.
+    
+    Returns:
+        Tuple of (users_processed, agreements_found).
+    """
+    # Get all users from DB
+    users = db_module.get_all_users()
+    logger.info(f"Processing agreements for {len(users)} users")
+    
+    total_agreements = 0
+    
+    for user in users:
+        try:
+            agreements = api_module.search_agreements_by_user(
+                user_email=user.email,
+                start_date=start_date_str,
+                end_date=end_date_str
+            )
+            
+            for agreement_dict in agreements:
+                agreement_data = api_module.map_api_to_agreement(agreement_dict, user.id)
+                db_module.upsert_agreement(agreement_data)
+                total_agreements += 1
+                
+        except Exception as e:
+            logger.error(f"Failed to process agreements for user {user.email}: {e}")
+            continue
+    
+    logger.info(f"Agreement sync complete: {total_agreements} agreements from {len(users)} users")
+    return len(users), total_agreements
 
 
 def test_main() -> int:
@@ -117,10 +157,11 @@ def test_main() -> int:
     # Import modules after logger config
     #import test_models as dbmodels
     #import test_database as db
-    #import test_api as api
-    #logger.debug("Modules imported successfully")
+    import test_api as api
 
-    ## TEST Validate database health
+    logger.debug("Modules imported successfully")
+
+    # Validate database health
     # if not validate_db_health(db):
     #     logger.error("Database health check failed - exiting")
     #     return 1
@@ -135,21 +176,44 @@ def test_main() -> int:
         logger.error("Date range validation failed - exiting")
         return 1
 
-    # TEST API fetch token
-    # api.test_fetch_token()
+    # TEST fetch token
+    api.test_fetch_token()
 
-    # TEST API fetch users
-    all_user_list = api.fetch_all_users()
 
-    # TEST API save to file
-    with open (TEST_USER_LIST_FILENAME, "w") as file:
-        file.write(f"{all_user_list}")
+    # Fetch users from Adobe Sign API
+    # try:
+    #     all_user_list = []
+    #     all_user_list = api.fetch_users()
+    # except:
+    #     #TODO handle errors, retry and notification
+    #     pass
 
+    # Test Process: Run user synchronization process
+    # test_run_user_sync_process(db)
+
+    
+    # Fetch and persist agreements for all users
+    # users_processed, agreements_found = fetch_and_persist_agreements(
+    #     db_module=db,
+    #     api_module=api,
+    #     start_date_str=last_end_date,
+    #     end_date_str=range_end_str
+    # )
+    # logger.info(f"Processed {users_processed} users, found {agreements_found} agreements")
+    
     logger.debug("Test runner completed successfully")
+
+    # TODO for each user in the Users table fetch agreements that match criteria: (status=SIGNED and createdDate in DateRange)
+    # TODO persist agreements in DB 
+    
+
+    # TODO Run safe DB close procedure
+
+
     return 0
 
 
 if __name__ == "__main__":
-    exit_code: int = test_main()
+    exit_code: int = main()
     logger.info(f"Exit code: {exit_code}")
     exit(exit_code)

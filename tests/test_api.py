@@ -1,60 +1,43 @@
 import logging
+from datetime import datetime
 import requests
+from test_auth import TokenManager
 from dotenv import dotenv_values
+from typing import Optional
+
 
 # LOGGER CONFIG
 logger = logging.getLogger(__name__)
 
-# API CONFIG
+# CREDENTIALS CONFIG
 config = dotenv_values(".env")
 CLIENT_ID = config.get("CLIENT_ID")
 CLIENT_SECRET = config.get("CLIENT_SECRET")
 REFRESH_TOKEN = config.get("REFRESH_TOKEN")
+
+# API CONFIG
 SHARD = "na1"
 BASE_URL = f"https://api.{SHARD}.echosign.com"
 
 ## ENDPOINTS
 GET_URI_ENDPOINT = f"https://api.{SHARD}.adobesign.com/api/rest/v6/baseUris"
-REFRESH_ENDPOINT = f"{BASE_URL}/oauth/v2/refresh"
 FETCH_USER_LIST_ENDPOINT = f"{BASE_URL}/api/rest/v6/users"
+SEARCH_ENDPOINT = f"{BASE_URL}/api/rest/v6/search"
 SECRETS_FOLDER = "./client_secret/"
-# URI_FILENAME = f"{SECRETS_FOLDER}adbe_sign_uri.json"
 
 # TEST CONFIG
-TOKEN_FILENAME = f"{SECRETS_FOLDER}adbe_dev_token.txt"
 USER_LIST_FILENAME = f"{SECRETS_FOLDER}user_list.txt"
 
-def refresh_token ():
-    endpoint = REFRESH_ENDPOINT
-    print(f"Consultando: {endpoint}")
 
-    payload = {
-            'grant_type': 'refresh_token',
-            'client_id': {CLIENT_ID},
-            'client_secret': {CLIENT_SECRET},
-            'refresh_token': {REFRESH_TOKEN}
-        }
+# Init Token Manager Instance for Adobe Sign
+adbe_sign_token_manager = TokenManager(CLIENT_ID, CLIENT_SECRET, REFRESH_TOKEN)
 
-    headers = {
-            'Content-Type': 'application/x-www-form-urlencoded'
-        }
 
-    try:
-        api_response = requests.post(endpoint, data=payload, headers=headers)
-        api_response.raise_for_status()
-        
-        tokens = api_response.json()
-        new_access_token = tokens.get("access_token")
-        print("Token renovado exitosamente.")
-        return new_access_token
-        
-    except requests.exceptions.HTTPError as e:
-        print(f"Error al refrescar: {e.response.status_code} - {e.response.text}")
-        return None
-
-def get_uris(token):
+def get_uris() -> Optional[str]:
+    """Get Adobe Sign base URIs."""
     endpoint = GET_URI_ENDPOINT
-    print(f"Consultando: {endpoint}")
+    logger.info(f"Fetching URIs from {endpoint}")
+    token = adbe_sign_token_manager.get_token()  # TokenManager handles auto-refresh
 
     headers = {
             'Authorization': f"Bearer {token}"
@@ -66,22 +49,28 @@ def get_uris(token):
         
         uris = api_response.json()
         api_base_uri = uris.get("apiAccessPoint")
-        print("OK URIs")
-        print(f"{uris}")
+        logger.info(f"Retrieved URIs: {api_base_uri}")
         return api_base_uri
         
     except requests.exceptions.HTTPError as e:
-        print(f"Error: {e.response.status_code} - {e.response.text}")
-        return None    
+        logger.error(f"Error fetching URIs: {e.response.status_code} - {e.response.text}")
+        raise  # Re-raise to caller
 
-## TODO FETCH USER LIST
-def fetch_users(token):
+
+def test_fetch_token():
+    """ Test function to test _token_manager"""
+    token = adbe_sign_token_manager.get_token()
+    print("OK GET TOKEN: ", token)
+
+def fetch_all_users() -> list[dict]:
+    """Fetch all users from Adobe Sign API with pagination."""
     all_users = []
     cursor = None
     counter = 0
+    token = adbe_sign_token_manager.get_token()  # TokenManager handles auto-refresh
 
     endpoint = FETCH_USER_LIST_ENDPOINT
-    print(f"Consultando: {endpoint}")
+    logger.info(f"Fetching users from {endpoint}")
     
     headers = {
             'Authorization': f"Bearer {token}"
@@ -110,43 +99,12 @@ def fetch_users(token):
             logger.debug (f"cursor: {cursor}")
         
             if not cursor:
-                logger.debug(f"Not cursor: {cursor}")
+                logger.debug(f"No more cursor")
                 break
             
     except requests.exceptions.HTTPError as e:
-        print(f"Error API: {e.response.status_code} - {e.response.text}")
-            #logging.error(f"Error API: {e}")
-        raise ConnectionError("Error Adobe Sign Api")
-        return None    
+        logger.error(f"Error fetching users: {e.response.status_code} - {e.response.text}")
+        raise  # Re-raise to caller
 
-    print(f"user_list_len: {len(all_users)}")
+    logger.info(f"Fetched {len(all_users)} users")
     return all_users
-
-def search_new_agreements(token,user_email,start_date,end_date):
-    pass
-
-
-# TEST CODE
-def test_code():
-    refreshed_token = refresh_token()
-    # refreshed_token = test_access_token
-
-    # test_api_base_uri = get_uris(refreshed_token)
-    #print ("test_api_base_uri:", test_api_base_uri)
-
-    # write token to file
-    with open (TOKEN_FILENAME, "w", encoding="utf-8") as file:
-        file.write(f"{refreshed_token}")
-        print (f"OK write {TOKEN_FILENAME}")
-
-    result = fetch_users(refreshed_token)
-    return result
-
-test_output = test_code()
-print (" L - L - L - L")
-# print ("test_output:\n", test_output)
-with open (USER_LIST_FILENAME, "w", encoding="utf-8") as file:
-        file.write(f"{test_output}")
-        print (f"OK write {USER_LIST_FILENAME}")
-
-print ("*THE END*")

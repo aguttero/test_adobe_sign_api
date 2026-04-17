@@ -1,3 +1,5 @@
+# old database.py 0417am
+
 ## LOGGER CONFIG
 import logging
 logger = logging.getLogger(__name__)
@@ -48,7 +50,14 @@ logger.debug("Session class start and bind END")
 # session = Session()
 
 
-def test_update_user_status_by_email(searched_email: str, new_status: str) -> None:
+def select_user_by_email(searched_email: str) -> User:
+    """Selects single user by email key. Returns User instance."""
+    with Session() as session:
+        result = session.execute(select(User).filter_by(email=searched_email)).scalar_one()
+        return result
+
+
+def update_user_status_by_email(searched_email: str, new_status: str) -> None:
     """Updates status field of single user by email key."""
     with Session() as session:
         stmt = select(User).filter_by(email=searched_email)
@@ -62,7 +71,21 @@ def test_update_user_status_by_email(searched_email: str, new_status: str) -> No
             logger.debug(f"usuario {searched_email} no encontrado")
 
 
-def test_update_users(user_list: list[dict]) -> None:
+def update_user_status_by_email_2(searched_email: str, new_status: str) -> None:
+    """Updates status field using session.begin() for auto-commit/rollback."""
+    with Session() as session:
+        with session.begin():
+            stmt = select(User).filter_by(email=searched_email)
+            user = session.execute(stmt).scalar_one_or_none()
+
+            if user:
+                user.status = new_status
+                logger.debug("update ok")
+            else:
+                logger.debug(f"usuario {searched_email} no encontrado")
+
+
+def update_users(user_list: list[dict]) -> None:
     """Upserts User table using email as the natural key.
     
     Uses session.merge to INSERT new users (email not yet in DB)
@@ -71,6 +94,10 @@ def test_update_users(user_list: list[dict]) -> None:
     Args:
         user_list: List of dicts with 'email' and 'adbe_sign_id' keys.
     """
+    if not user_list:
+        logger.warning("no user list")
+        return
+    
     with Session() as session:
         try:
             for dict_item in user_list:
@@ -149,6 +176,40 @@ def bulk_insert_list(table_name: Type[Base], input_list: list[dict]) -> None:
             session.rollback()
             logger.error(f"SQLA error during bulk insert: {e}")
             raise
+        except Exception as e:
+            session.rollback()
+            logger.error(f"Unexpected error during bulk insert: {e}")
+            raise
+
+
+def insert_users_session_add(dict_item: dict) -> None:
+    """Inserts a single dict user into User table with session add.
+    
+    Args:
+        dict_item: Dictionary containing user fields.
+    """
+    with Session() as session:
+        try:
+            new_user = User(
+                email=dict_item.get('email'),
+                first_name=dict_item.get('first_name'),
+                last_name=dict_item.get('last_name'),
+                status=dict_item.get('status'),
+                adbe_sign_id=dict_item.get('adbe_sign_id')
+            )
+            session.add(new_user)
+            session.commit()
+            logger.info(f"Successfully inserted user: {dict_item.get('email')}")
+
+        except IntegrityError as e:
+            session.rollback()
+            logger.error(f"Integrity error inserting user {dict_item.get('email')}: {e}")
+            raise
+        except Exception as e:
+            session.rollback()
+            logger.error(f"Unexpected error inserting user {dict_item.get('email')}: {e}")
+            raise
+
 
 def get_existing_emails() -> List[str]:
     """Fetch all existing email addresses from the User table.
@@ -159,7 +220,7 @@ def get_existing_emails() -> List[str]:
     with Session() as session:
         # existing_email_list = session.execute(select(User.email)).scalars().all()
         existing_email_list = list(session.scalars(select(User.email)).all())
-    logger.debug(f"Fetched {len(existing_email_list)} emails from database")
+    logger.debug(f"OK Read {len(existing_email_list)} existing emails from database")
     return existing_email_list
 
 
@@ -198,3 +259,39 @@ def insert_new_items_by_email_key(input_list: list[dict]) -> None:
         logger.info(f"Inserted {len(new_users)} new users")
     else:
         logger.debug("No new users to insert")
+
+
+def get_all_users() -> List[User]:
+    """Fetch all users from the User table."""
+    with Session() as session:
+        result = session.execute(select(User)).scalars().all()
+    logger.debug(f"Fetched {len(result)} users from database")
+    return result
+
+
+def upsert_agreement(agreement_data: dict) -> None:
+    """Insert or update an agreement using agreement_id as unique key."""
+    with Session() as session:
+        try:
+            # Check if exists
+            existing = session.execute(
+                select(Agreement).filter_by(agreement_id=agreement_data['agreement_id'])
+            ).scalar_one_or_none()
+            
+            if existing:
+                # Update fields
+                for key, value in agreement_data.items():
+                    if hasattr(existing, key):
+                        setattr(existing, key, value)
+                logger.debug(f"Updated agreement: {agreement_data['agreement_id']}")
+            else:
+                # Insert new
+                new_agreement = Agreement(**agreement_data)
+                session.add(new_agreement)
+                logger.debug(f"Inserted agreement: {agreement_data['agreement_id']}")
+            
+            session.commit()
+        except SQLAlchemyError as e:
+            session.rollback()
+            logger.error(f"Failed to upsert agreement: {e}")
+            raise
