@@ -1,68 +1,58 @@
-## LOGGER CONFIG
+"""
+Database operations for the Adobe Sign dashboard.
+All database access via SQLAlchemy. No API calls, no token logic.
+"""
 import logging
+from typing import List, Type
+
+from sqlalchemy import create_engine, select, insert
+from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.exc import SQLAlchemyError
+
+from test_models import Base, User, Agreement
+from test_exceptions import DatabaseError
+
 logger = logging.getLogger(__name__)
 
-from typing import Type, List
-from sqlalchemy import create_engine, select
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.exc import SQLAlchemyError, IntegrityError
-logger.debug("from test_models import Base START")
-from test_models import Base, User, Agreement
-logger.debug("from test_models import Base END")
+# Lazy engine initialization
+_engine = None
 
 
-# FOR INTEGRITY ERROR HANDLING
-# from sqlalchemy.exc import IntegrityError
+def _get_engine():
+    """Get or create the database engine (lazy initialization)."""
+    global _engine
+    if _engine is None:
+        DB_ENGINE_URL = "sqlite:///tests/data/test_01.db"
+        _engine = create_engine(DB_ENGINE_URL, echo=True)
+        Base.metadata.create_all(_engine)
+    return _engine
 
-# FOR FK ENFORCEMENT IN SQLlite via connection event monitoring
-# from sqlalchemy import event
-# from sqlalchemy.engine import Engine
 
-## CONFIG
-# Database file definition
-logger.debug("DB_ENGINE_URL var def START")
-DB_ENGINE_URL = "sqlite:///tests/data/test_01.db"
-logger.debug("DB_ENGINE_URL var def END")
-
-logger.debug("create_engine START")
-engine = create_engine(DB_ENGINE_URL, echo=True)
-logger.debug("create_engine END")
-
-## ENABLE FK ENFORCEMENT
-# Needs to be placed after engine creation
-# @event.listens_for(Engine, "connect")
-# def set_sqlite_pragma(dbapi_connection, connection_record):
-#     cursor = dbapi_connection.cursor()
-#     cursor.execute("PRAGMA foreign_keys=ON")
-#     cursor.close()
-
-# START DB Engine
-logger.debug("base.metadata.create_all(engine) START")
-Base.metadata.create_all(engine)
-logger.debug("base.metadata.create_all(engine) END")
-
-# START Session class
-logger.debug("Session class start and bind START")
-Session = sessionmaker(bind=engine)
-logger.debug("Session class start and bind END")
-# session = Session()
+def _get_session() -> Session:
+    """Create a new database session."""
+    return sessionmaker(bind=_get_engine())()
 
 
 def test_update_user_status_by_email(searched_email: str, new_status: str) -> None:
     """Updates status field of single user by email key."""
-    with Session() as session:
-        stmt = select(User).filter_by(email=searched_email)
-        user = session.execute(stmt).scalar_one_or_none()
+    with _get_session() as session:
+        try:
+            stmt = select(User).filter_by(email=searched_email)
+            user = session.execute(stmt).scalar_one_or_none()
 
-        if user:
-            user.status = new_status
-            session.commit()
-            logger.debug("update ok")
-        else:
-            logger.debug(f"usuario {searched_email} no encontrado")
+            if user:
+                user.status = new_status
+                session.commit()
+                logger.debug("update ok")
+            else:
+                logger.debug(f"usuario {searched_email} no encontrado")
+        except SQLAlchemyError as e:
+            session.rollback()
+            logger.error(f"Failed to update user status: {e}")
+            raise DatabaseError(f"Failed to update user status: {e}", original_exc=e)
 
 
-def test_update_users(user_list: list[dict]) -> None:
+def test_update_users(user_list: List[dict]) -> None:
     """Upserts User table using email as the natural key.
     
     Uses session.merge to INSERT new users (email not yet in DB)
@@ -71,7 +61,7 @@ def test_update_users(user_list: list[dict]) -> None:
     Args:
         user_list: List of dicts with 'email' and 'adbe_sign_id' keys.
     """
-    with Session() as session:
+    with _get_session() as session:
         try:
             for dict_item in user_list:
                 new_item = User(
@@ -84,10 +74,10 @@ def test_update_users(user_list: list[dict]) -> None:
         except SQLAlchemyError as e:
             session.rollback()
             logger.error(f"Failed to upsert users: {e}")
-            raise
+            raise DatabaseError(f"Failed to upsert users: {e}", original_exc=e)
 
 
-def test_convert_txt_to_list(filename: str) -> list:
+def test_convert_txt_to_list(filename: str) -> List[dict]:
     """Converts file.txt user list to python list.
     
     Args:
@@ -97,20 +87,21 @@ def test_convert_txt_to_list(filename: str) -> list:
         List of user dictionaries parsed from file.
     """
     import ast
+    
+    try:
+        with open(filename, "r") as file:
+            file_content = file.read()
+            logger.debug(f"OK Read: {filename} - {len(file_content)} chars")
 
-    with open(filename, "r") as file:
-        file_content = file.read()
-        logger.debug(f"OK Read: {filename} - {len(file_content)} chars")
-
-    user_list = ast.literal_eval(file_content)
-    logger.debug(f"OK Assign to list {len(user_list)} items")
-    logger.debug(f"- - - - DEBUG: Function: Convert file.txt to user_list")
-    logger.debug(f"len user_list: {len(user_list)}")
-    logger.debug(f"- - - - ")
-    return user_list
+        user_list = ast.literal_eval(file_content)
+        logger.debug(f"OK Assign to list {len(user_list)} items")
+        return user_list
+    except Exception as e:
+        logger.error(f"Failed to read user list file: {e}")
+        raise DatabaseError(f"Failed to read user list file: {e}", original_exc=e)
 
 
-def test_transform_user_list_keys(input_list: list[dict]) -> list[dict]:
+def transform_user_list_keys(input_list: List[dict]) -> List[dict]:
     """Transforms user_list dict keys from Adobe Sign API format to app Database format.
     
     Strips and lowercases email addresses. Converts 'id' key to 'adbe_sign_id'.
@@ -132,15 +123,14 @@ def test_transform_user_list_keys(input_list: list[dict]) -> list[dict]:
     return transformed_list
 
 
-def bulk_insert_list(table_name: Type[Base], input_list: list[dict]) -> None:
+def bulk_insert_list(table_name: Type[Base], input_list: List[dict]) -> None:
     """Bulk insert input_list into table for initial table load.
     
     Args:
         table_name: The SQLAlchemy model class to insert into.
         input_list: List of dictionaries representing rows to insert.
     """
-    from sqlalchemy import insert
-    with Session() as session:
+    with _get_session() as session:
         try:
             session.execute(insert(table_name), input_list)
             session.commit()
@@ -148,7 +138,8 @@ def bulk_insert_list(table_name: Type[Base], input_list: list[dict]) -> None:
         except SQLAlchemyError as e:
             session.rollback()
             logger.error(f"SQLA error during bulk insert: {e}")
-            raise
+            raise DatabaseError(f"SQLA error during bulk insert: {e}", original_exc=e)
+
 
 def get_existing_emails() -> List[str]:
     """Fetch all existing email addresses from the User table.
@@ -156,14 +147,17 @@ def get_existing_emails() -> List[str]:
     Returns:
         List of email strings currently in the database.
     """
-    with Session() as session:
-        # existing_email_list = session.execute(select(User.email)).scalars().all()
-        existing_email_list = list(session.scalars(select(User.email)).all())
-    logger.debug(f"Fetched {len(existing_email_list)} emails from database")
-    return existing_email_list
+    with _get_session() as session:
+        try:
+            existing_email_list = list(session.scalars(select(User.email)).all())
+            logger.debug(f"Fetched {len(existing_email_list)} emails from database")
+            return existing_email_list
+        except SQLAlchemyError as e:
+            logger.error(f"Failed to fetch existing emails: {e}")
+            raise DatabaseError(f"Failed to fetch existing emails: {e}", original_exc=e)
 
 
-def filter_new_users(existing_emails: List[str], input_list: list[dict]) -> list[dict]:
+def filter_new_users(existing_emails: List[str], input_list: List[dict]) -> List[dict]:
     """Filter input_list to only include users not already in the database.
     
     Args:
@@ -181,7 +175,7 @@ def filter_new_users(existing_emails: List[str], input_list: list[dict]) -> list
     return new_users_list
 
 
-def insert_new_items_by_email_key(input_list: list[dict]) -> None:
+def insert_new_items_by_email_key(input_list: List[dict]) -> None:
     """Insert new users from input_list that don't already exist in the User table.
     
     Compares input list against existing database records and inserts only new users.
