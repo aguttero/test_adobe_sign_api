@@ -1,31 +1,69 @@
 # Project: Adobe Sign Signature Dashboard
 
-## Project Overview
-Status: WIP - Work in Progress
-Weekly signature status dashboard. Tracks ~1,500 documents/month via
-Adobe Sign API. Exports to dashboard.csv. Stack: Python 3.11+, SQLAlchemy, SQLite, REST API calls.
+## Overview
+Weekly signature status dashboard. Tracks ~1,500 documents/month via Adobe Sign API. Exports to dashboard.csv. Stack: Python 3.11+, SQLAlchemy, SQLite, REST API.
 
-## Development modules
-located in `tests`
-ignore code in `src`, `tests/old_modules`, `tests/zscrappping_code`
+## Directory Structure
+- **tests/** — Active development modules (test_main.py, test_api.py, test_auth.py, test_database.py, test_models.py, test_utils.py, test_exceptions.py)
+- **tests/data/** — SQLite database (`test_01.db`)
+- **tests/old_modules/** — Ignore
+- **tests/zscrappping_code/** — Ignore
+- **src/** — Ignore
+- **client_secret/** — Contains credentials (token files, .env should go here)
 
-## Agent Guidelines
-use `.opencode/agents/python_coder.md`
+## Critical Commands
+```bash
+# Run the main script
+python tests/test_main.py
 
-## Project TODO List
-* Generate an implementation plan for the following tasks:
-* fetch all users from Adobe Sign API
-* insert only new users in DB Users table. 
-    * Use email for comparison of new users vs exisitng users 
-    * To improve performance, first obtain the existing email list for all users in the Users table
-    * insert to DB only users that are not in the existing email list. insert email and adbe_sing_id ('email' and 'id' in the adobe user api response)
+# Run specific test (if pytest is set up)
+pytest tests/test_<module>.py
+```
 
-## Agent task:
-Analyze this codebase to create a comprehensive AGENTS.md file. Scan the project structure, configuration files (e.g., package.json, tsconfig.json, docker-compose.yml), and existing documentation.
-Generate the file with these sections:
-Project Overview: A one-sentence summary of the project's purpose and tech stack.
-Project Structure: Map key directories and their responsibilities.
-Critical Commands: List exact commands for build, lint, test, and typecheck.
-Coding Conventions: Identify naming patterns (e.g., camelCase vs PascalCase), preferred libraries, and architectural rules (e.g., use interfaces over types). Use `.opencode/agents/python_coder.md` agent guidelines
-Operational Boundaries: Define what files or services I should NOT modify.
-Focus only on information that is not obvious from filenames alone. Prioritize brevity for machine parsing
+## Module Architecture (load order)
+1. **test_exceptions.py** — Custom exceptions: AppError, DatabaseError, APIError, AuthError
+2. **test_utils.py** — Pure helper functions
+3. **test_models.py** — SQLAlchemy models: User (table: user_account), Agreement, SyncHistory
+4. **test_auth.py** — TokenManager class with auto-refresh, 300s buffer before expiry
+5. **test_database.py** — All DB ops via SQLAlchemy (not sqlite3 directly)
+6. **test_api.py** — Adobe Sign HTTP calls, uses TokenManager internally
+7. **test_main.py** — Orchestration only
+
+## Database Schema
+- **user_account** table: id, email (unique), adbe_sign_id (unique), group_id, first_name, last_name, job_area, job_title, status, last_sync (date)
+- **agreement** table: id, agreement_id (unique), display_date, name, type, status, workflow_id, group_id, created_date, last_event_date, user_id (FK)
+- **sync_history** table: id, run_date, range_start, range_end, agreements_found, sync_ok
+
+## Key Functions
+- **test_api.fetch_all_users()** — Paginated fetch from Adobe Sign /users endpoint, returns list of dicts with 'email' and 'id'
+- **test_database.get_existing_emails()** — Returns list of emails in User table
+- **test_database.filter_new_users(existing_emails, input_list)** — Filters input to only new users by email
+- **test_database.bulk_insert_list(table, input_list)** — Bulk insert into table
+- **test_database.test_transform_user_list_keys(input_list)** — Transforms API format ('email', 'id') to DB format ('email', 'adbe_sign_id'), normalizes email to lowercase
+
+## Credentials
+All credentials come from environment variables via `dotenv_values(".env")`:
+- CLIENT_ID, CLIENT_SECRET, REFRESH_TOKEN
+- .env file location: project root or `./client_secret/`
+
+## Token Management
+- TokenManager in test_auth.py handles auto-refresh
+- Refresh happens 300s before actual expiry
+- First network call happens on first get_token() call (lazy initialization)
+
+## Coding Conventions
+- Type hints required everywhere
+- Functions log at DEBUG/INFO level, main.py logs pipeline outcomes
+- Custom exceptions wrap library exceptions (never leak raw sqlite3/requests errors)
+- test_database.py only does DB ops (no API calls)
+- test_api.py only does HTTP (no business logic on empty results)
+- main.py handles all business condition checks (empty lists, etc.)
+
+## What NOT to Modify
+- Files in `src/`
+- Files in `tests/old_modules/`
+- Files in `tests/zscrappping_code/`
+- Credentials (hardcode in code - always use os.getenv() or dotenv_values)
+
+## Existing Agent Guidelines
+See `.opencode/agents/python_coder.md` for detailed coding rules (naming, exception handling, logging format).

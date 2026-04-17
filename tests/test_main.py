@@ -9,6 +9,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Optional
 import test_api as api
+import test_database as db
 
 # Module-level constants
 SECRETS_FOLDER: str = "client_secret/"
@@ -115,10 +116,7 @@ def test_main() -> int:
     logger.debug("Starting test_main execution")
 
     # Import modules after logger config
-    #import test_models as dbmodels
-    #import test_database as db
-    #import test_api as api
-    #logger.debug("Modules imported successfully")
+    logger.debug("Modules imported successfully")
 
     ## TEST Validate database health
     # if not validate_db_health(db):
@@ -140,8 +138,16 @@ def test_main() -> int:
 
     # TEST API fetch users
     all_user_list = api.fetch_all_users()
+    logger.info(f"Fetched {len(all_user_list)} users from Adobe Sign API")
 
-    # TEST API save to file
+    # Transform API response keys to DB schema
+    transformed_user_list = db.test_transform_user_list_keys(all_user_list)
+    logger.debug(f"Transformed {len(transformed_user_list)} user records")
+
+    # Insert only new users (not in existing email list)
+    db.insert_new_items_by_email_key(transformed_user_list)
+
+    # TEST API save to file (backup)
     with open (TEST_USER_LIST_FILENAME, "w") as file:
         file.write(f"{all_user_list}")
 
