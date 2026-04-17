@@ -25,11 +25,13 @@ def _get_engine():
         DB_ENGINE_URL = "sqlite:///tests/data/test_01.db"
         _engine = create_engine(DB_ENGINE_URL, echo=True)
         Base.metadata.create_all(_engine)
+        logger.debug("DB engine get or create OK")
     return _engine
 
 
 def _get_session() -> Session:
     """Create a new database session."""
+    logger.debug("DB Session created OK")
     return sessionmaker(bind=_get_engine())()
 
 
