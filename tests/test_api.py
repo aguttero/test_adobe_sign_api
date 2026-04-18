@@ -11,6 +11,7 @@ from dotenv import dotenv_values
 from test_auth import TokenManager
 from test_exceptions import APIError
 
+
 # LOGGER CONFIG
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,7 @@ BASE_URL: str = f"https://api.{SHARD}.echosign.com"
 
 # ENDPOINTS
 FETCH_USER_LIST_ENDPOINT: str = f"{BASE_URL}/api/rest/v6/users"
-
+SEARCH_ENDPOINT: str = f"{BASE_URL}/api/rest/v6/sarch"
 
 def get_token_manager() -> TokenManager:
     """Get the shared TokenManager instance (lazy initialization)."""
