@@ -2,6 +2,7 @@
 Database operations for the Adobe Sign dashboard.
 All database access via SQLAlchemy. No API calls, no token logic.
 """
+from datetime import date, datetime
 import logging
 from typing import List, Type
 
@@ -11,6 +12,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from test_models import Base, User, Agreement, AgreementSigner
 from test_exceptions import DatabaseError
+
 
 logger = logging.getLogger(__name__)
 
@@ -236,7 +238,7 @@ def get_user_by_adbe_sign_id(adbe_sign_id: str) -> User:
             raise DatabaseError(f"Failed to fetch user by adbe_sign_id: {e}", original_exc=e)
 
 
-def _parse_date(date_str: str) -> str:
+def _parse_date(date_str: str) -> date:
     """Parse date string to YYYY-MM-DD format for SQLite.
 
     Args:
@@ -245,10 +247,16 @@ def _parse_date(date_str: str) -> str:
     Returns:
         Date string in YYYY-MM-DD format.
     """
-    if not date_str:
-        return ""
+    #logger.debug(f"input date value: {date_str}")
+    # Convert string to date object
+    date_time_obj = datetime.fromisoformat(date_str)
+
+    # Convert naive date + time to date object
+    date_obj = date_time_obj.date()
+    #logger.debug(f"output date value: {date_obj}")
+    return date_obj
     # Extract date part (first 10 characters)
-    return date_str[:10]
+#    return date_str[:10]
 
 
 def insert_agreements(agreement_list: List[dict], user_id: int) -> int:
@@ -281,14 +289,14 @@ def insert_agreements(agreement_list: List[dict], user_id: int) -> int:
                 # Create agreement record
                 new_agreement = Agreement(
                     agreement_id=agr.get("agreement_id"),
-                    display_date=_parse_date(agr.get("created_date", "")),
+                    # display_date=_parse_date(agr.get("created_date", "")),
                     name=agr.get("name", ""),
                     type="AGREEMENT",
                     status=agr.get("status", ""),
                     workflow_id=agr.get("workflow_id", ""),
                     group_id=agr.get("group_id", ""),
                     created_date=_parse_date(agr.get("created_date", "")),
-                    last_event_date=_parse_date(agr.get("last_event_date", "")),
+                    modified_date=_parse_date(agr.get("modified_date", "")),
                     user_id=user_id
                 )
                 session.add(new_agreement)

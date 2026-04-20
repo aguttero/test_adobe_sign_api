@@ -46,14 +46,14 @@ class Agreement(Base):
     
     id: Mapped[int] = mapped_column(primary_key=True)
     agreement_id: Mapped[str] = mapped_column(nullable=False, unique=True, index=True)
-    display_date: Mapped[dt.date]
+    # display_date: Mapped[dt.date]
     name: Mapped[str]
     type: Mapped[str]
     status: Mapped[str]
     workflow_id: Mapped[Optional[str]]
     group_id: Mapped[str]
     created_date: Mapped[dt.date]
-    last_event_date: Mapped[dt.date]
+    modified_date: Mapped[dt.date]
 
     user_id: Mapped[int] = mapped_column(ForeignKey("user_account.id"))
 

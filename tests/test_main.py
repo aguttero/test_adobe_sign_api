@@ -17,13 +17,16 @@ import test_api as api
 import test_database as db
 from test_exceptions import AppError, APIError, DatabaseError, AuthError
 
+
 # Module-level constants
 SECRETS_FOLDER: str = "client_secret/"
 USER_LIST_FILENAME: str = f"{SECRETS_FOLDER}user_list.txt"
-TEST_USER_LIST_FILENAME: str = f"{SECRETS_FOLDER}test_user_list_mock_v01.txt"
+TEST_USER_LIST_FILENAME: str = f"{SECRETS_FOLDER}test_user_list_mock_v02.txt"
+TEST_NEW_AGREEMENT_LIST_FILENAME = f"{SECRETS_FOLDER}test_new_agreement_list_v01.txt"
+
 
 # Default date range (should be read from DB in production)
-DEFAULT_LAST_DATE_RANGE_END: str = "2026-03-01T00:00:00Z"
+DEFAULT_LAST_DATE_RANGE_END: str = "2024-01-01T00:00:00Z"
 #DEFAULT_LAST_DATE_RANGE_END: str = "2026-04-15T00:00:00Z"
 
 
@@ -108,7 +111,7 @@ def test_run_user_sync_process(db_module) -> None:
 
 def search_new_agreements(
     user_email: str,
-    user_adbe_sign_id: str,
+    #user_adbe_sign_id: str,
     date_range_start: str,
     date_range_end: str
 ) -> List[dict]:
@@ -128,7 +131,7 @@ def search_new_agreements(
     # Search agreements via API
     agreement_list: List[dict] = api.search_agreements(
         user_email=user_email,
-        user_adbe_sign_id=user_adbe_sign_id,
+        # user_adbe_sign_id=user_adbe_sign_id,
         date_range_start=date_range_start,
         date_range_end=date_range_end
     )
@@ -171,16 +174,17 @@ def search_agreements_for_users(
 
     for user in user_list:
         user_email = user.get("email", "")
-        user_adbe_sign_id = user.get("adbe_sign_id", "")
+        # user_adbe_sign_id = user.get("adbe_sign_id", "")
 
-        if not user_email or not user_adbe_sign_id:
+        #if not user_email or not user_adbe_sign_id:
+        if not user_email:
             logger.warning(f"Skipping user with missing email or adbe_sign_id")
             continue
 
         try:
             agreements = search_new_agreements(
                 user_email=user_email,
-                user_adbe_sign_id=user_adbe_sign_id,
+                # user_adbe_sign_id=user_adbe_sign_id,
                 date_range_start=date_range_start,
                 date_range_end=date_range_end
             )
@@ -218,11 +222,11 @@ def test_main() -> int:
 
     try:
         # Compute search date range
-        last_end_date: str = DEFAULT_LAST_DATE_RANGE_END
-        _, range_end_str = compute_search_date_range(last_end_date)
+        last_end_date_str: str = DEFAULT_LAST_DATE_RANGE_END
+        _, new_end_date_str = compute_search_date_range(last_end_date_str)
 
         # Validate date range is in the past
-        if not validate_range_in_past(range_end_str):
+        if not validate_range_in_past(new_end_date_str):
             logger.error("Date range validation failed - exiting")
             return 1
 
@@ -243,11 +247,28 @@ def test_main() -> int:
         logger.debug(f"Transformed {len(transformed_user_list)} user records")
 
         # Insert only new users (not in existing email list)
-        db.insert_new_items_by_email_key(transformed_user_list)
+        # db.insert_new_items_by_email_key(transformed_user_list)
 
         # Backup: save to file
-        with open(TEST_USER_LIST_FILENAME, "w") as file:
-            file.write(f"{all_user_list}")
+        #with open(TEST_USER_LIST_FILENAME, "w") as file:
+        #    file.write(f"{all_user_list}")
+
+        #SEARCH for new agreement for TEST USER
+        from dotenv import dotenv_values
+        config = dotenv_values('.env')
+        TEST_DEV_USER_EMAIL = config.get("TEST_DEV_USER_EMAIL")
+        new_agreement_list = []
+
+        test_usr_email = TEST_DEV_USER_EMAIL
+        last_end_date_str = "2025-01-01T00:00:00Z"
+        new_end_date_str = "2026-04-19T00:00:00Z"
+
+        new_agreement_list = search_new_agreements(test_usr_email,last_end_date_str,new_end_date_str)
+
+        # Backup: save to file
+        with open(TEST_NEW_AGREEMENT_LIST_FILENAME, "w") as file:
+            file.write(f"{new_agreement_list}")
+            logger.debug(f"backup file {TEST_NEW_AGREEMENT_LIST_FILENAME} saved")
 
         logger.info("Test runner completed successfully")
         return 0

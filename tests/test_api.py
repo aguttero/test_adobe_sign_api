@@ -102,7 +102,7 @@ def fetch_all_users() -> List[dict]:
 
 def search_agreements(
     user_email: str,
-    user_adbe_sign_id: str,
+    # user_adbe_sign_id: str,
     date_range_start: str,
     date_range_end: str
 ) -> List[dict]:
@@ -134,34 +134,52 @@ def search_agreements(
         'x-api-user': f'email:{user_email}'
     }
 
+    # payload: dict = {
+    #     "query": "*",
+    #     "filterRules": [
+    #         {
+    #             "field": "ROLES",
+    #             "operator": "EQUALS",
+    #             "values": ["SENDER"]
+    #         },
+    #         {
+    #             "field": "CREATION_DATE",
+    #             "operator": "AFTER",
+    #             "values": [date_range_start]
+    #         },
+    #         {
+    #             "field": "CREATION_DATE",
+    #             "operator": "BEFORE",
+    #             "values": [date_range_end]
+    #         }
+    #     ],
+    #     "pagination": {
+    #         "pageSize": 100
+    #     }
+    # }
     payload: dict = {
-        "query": "*",
-        "filterRules": [
-            {
-                "field": "ROLES",
-                "operator": "EQUALS",
-                "values": ["SENDER"]
-            },
-            {
-                "field": "CREATION_DATE",
-                "operator": "AFTER",
-                "values": [date_range_start]
-            },
-            {
-                "field": "CREATION_DATE",
-                "operator": "BEFORE",
-                "values": [date_range_end]
+            "scope": ["AGREEMENT_ASSETS"],
+            "agreementAssetsCriteria": {
+                "type": ["AGREEMENT"],
+                "createdDate": {
+                    "range": {
+                        "min": date_range_start,
+                        "max": date_range_end
+                    }
+                },
+                "startIndex": 0,
+                "pageSize": 100,
+                "status": ["SIGNED"],
+                "sortByField": "CREATED_DATE",
+                "sortOrder": "ASC"
             }
-        ],
-        "pagination": {
-            "pageSize": 100
         }
-    }
 
     try:
         while True:
             if next_index is not None:
-                payload["pagination"]["startCursor"] = next_index
+                #payload["pagination"]["startCursor"] = next_index
+                payload["agreementAssetsCriteria"]["startIndex"] = next_index
 
             api_response = requests.post(endpoint, headers=headers, json=payload)
             api_response.raise_for_status()
@@ -195,11 +213,12 @@ def search_agreements(
 
                 transformed = {
                     "email": user_email,
-                    "adbe_sign_id": user_adbe_sign_id,
+                    # "adbe_sign_id": user_adbe_sign_id,
+                    "adbe_sign_id": agreement.get("userId"),
                     "group_id": agreement.get("groupId", ""),
                     "signers": signers,
                     "created_date": created_date_str,
-                    "last_event_date": modified_date_str,
+                    "modified_date": modified_date_str,
                     "name": agreement.get("name", ""),
                     "agreement_id": agreement.get("id", ""),
                     "workflow_id": agreement.get("workflowId", ""),
@@ -210,6 +229,7 @@ def search_agreements(
             # Check for next page
             page_info = agreements_results.get("searchPageInfo", {})
             next_index = page_info.get("nextIndex")
+            logger.debug(f"next_index value: {next_index!r} - data type {type(next_index)}")
 
             if next_index is None:
                 logger.debug("No more pages")
