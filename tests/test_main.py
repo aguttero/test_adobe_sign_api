@@ -20,7 +20,7 @@ from test_exceptions import AppError, APIError, DatabaseError, AuthError
 # Module-level constants
 SECRETS_FOLDER: str = "client_secret/"
 USER_LIST_FILENAME: str = f"{SECRETS_FOLDER}user_list.txt"
-TEST_USER_LIST_FILENAME: str = f"{SECRETS_FOLDER}test_user_list_v03.txt"
+TEST_USER_LIST_FILENAME: str = f"{SECRETS_FOLDER}test_user_list_mock_v01.txt"
 
 # Default date range (should be read from DB in production)
 DEFAULT_LAST_DATE_RANGE_END: str = "2026-03-01T00:00:00Z"
@@ -106,6 +106,104 @@ def test_run_user_sync_process(db_module) -> None:
     logger.debug("User sync process completed")
 
 
+def search_new_agreements(
+    user_email: str,
+    user_adbe_sign_id: str,
+    date_range_start: str,
+    date_range_end: str
+) -> List[dict]:
+    """Search agreements for a given user within a date range and persist to DB.
+
+    Args:
+        user_email: Email address of the agreement owner.
+        user_adbe_sign_id: Adobe Sign user ID of the agreement owner.
+        date_range_start: Start date for search (ISO format).
+        date_range_end: End date for search (ISO format).
+
+    Returns:
+        List of agreement dictionaries.
+    """
+    logger.info(f"Searching agreements for {user_email} from {date_range_start} to {date_range_end}")
+
+    # Search agreements via API
+    agreement_list: List[dict] = api.search_agreements(
+        user_email=user_email,
+        user_adbe_sign_id=user_adbe_sign_id,
+        date_range_start=date_range_start,
+        date_range_end=date_range_end
+    )
+    logger.info(f"Found {len(agreement_list)} agreements for {user_email}")
+
+    # Get user from DB to associate agreements
+    user = db.get_user_by_email(user_email)
+    if user is None:
+        logger.error(f"User {user_email} not found in database")
+        return []
+
+    # Persist agreements to DB
+    agreements_inserted = db.insert_agreements(agreement_list, user.id)
+    logger.info(f"Inserted {agreements_inserted} agreements for {user_email}")
+
+    return agreement_list
+
+
+def search_agreements_for_users(
+    user_list: List[dict],
+    date_range_start: str,
+    date_range_end: str
+) -> Tuple[int, int, int]:
+    """Search agreements for multiple users and persist to DB.
+
+    Args:
+        user_list: List of user dictionaries with 'email' and 'adbe_sign_id'.
+        date_range_start: Start date for search (ISO format).
+        date_range_end: End date for search (ISO format).
+
+    Returns:
+        Tuple of (total_users_searched, users_with_zero_agreements, users_with_agreements).
+    """
+    total_users: int = len(user_list)
+    users_with_zero: int = 0
+    users_with_agreements: int = 0
+    total_agreements: int = 0
+
+    logger.info(f"Searching agreements for {total_users} users")
+
+    for user in user_list:
+        user_email = user.get("email", "")
+        user_adbe_sign_id = user.get("adbe_sign_id", "")
+
+        if not user_email or not user_adbe_sign_id:
+            logger.warning(f"Skipping user with missing email or adbe_sign_id")
+            continue
+
+        try:
+            agreements = search_new_agreements(
+                user_email=user_email,
+                user_adbe_sign_id=user_adbe_sign_id,
+                date_range_start=date_range_start,
+                date_range_end=date_range_end
+            )
+
+            if len(agreements) == 0:
+                users_with_zero += 1
+            else:
+                users_with_agreements += 1
+                total_agreements += len(agreements)
+
+        except Exception as e:
+            logger.error(f"Error searching agreements for {user_email}: {e}")
+            continue
+
+    # Log summary statistics
+    logger.info(f"Total users searched: {total_users}")
+    logger.info(f"Users with zero agreements: {users_with_zero}")
+    logger.info(f"Users with agreements: {users_with_agreements}")
+    logger.info(f"Total agreements found: {total_agreements}")
+
+    return total_users, users_with_zero, users_with_agreements
+
+
 def test_main() -> int:
     """Main entry point for the test runner.
 
@@ -129,8 +227,11 @@ def test_main() -> int:
             return 1
 
         # Fetch users from Adobe Sign API
-        all_user_list: List[dict] = api.fetch_all_users()
-        logger.info(f"Fetched {len(all_user_list)} users from Adobe Sign API")
+        #all_user_list: List[dict] = api.fetch_all_users()
+        #logger.info(f"Fetched {len(all_user_list)} users from Adobe Sign API")
+
+        ## TEST CODE
+        all_user_list = [{'email': ' Test9@eMail.com ','first_name': 'Charlie','last_name': 'Update','status': 'test','id': 'updated_user_id_09'},{'email': ' Test10@eMail.com ','first_name': 'Charlie','last_name': 'Update','status': 'test','id': 'updated_user_id_10'}]
 
         # Business condition: handle empty user list
         if not all_user_list:

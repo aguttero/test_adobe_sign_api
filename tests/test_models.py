@@ -56,11 +56,32 @@ class Agreement(Base):
     last_event_date: Mapped[dt.date]
 
     user_id: Mapped[int] = mapped_column(ForeignKey("user_account.id"))
-    
+
     user: Mapped[User] = relationship(back_populates="agreements")
+    signers: Mapped[List["AgreementSigner"]] = relationship(
+        back_populates="agreement",
+        cascade="all, delete-orphan"
+    )
 
     def __repr__(self) -> str:
         return f"Agreement(name={self.name!r}, status={self.status!r}, created_date={self.created_date!r}, id={self.id!r})"
+
+
+class AgreementSigner(Base):
+    """Agreement signer model mapped to agreement_signer table."""
+    __tablename__ = "agreement_signer"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    # agreement_id: Mapped[str] = mapped_column(nullable=False, index=True)
+    agreement_id: Mapped[str] = mapped_column(ForeignKey("agreement.id"))
+    signer_email: Mapped[str] = mapped_column(nullable=False, index=True)
+    signer_full_name: Mapped[Optional[str]]
+    signer_role: Mapped[Optional[str]]
+
+    agreement: Mapped["Agreement"] = relationship(back_populates="signers")
+
+    def __repr__(self) -> str:
+        return f"AgreementSigner(email={self.signer_email!r}, full_name={self.signer_full_name!r}, role={self.signer_role!r})"
 
 
 class SyncHistory(Base):
