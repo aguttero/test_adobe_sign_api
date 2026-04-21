@@ -26,7 +26,7 @@ TEST_NEW_AGREEMENT_LIST_FILENAME = f"{SECRETS_FOLDER}test_new_agreement_list_v01
 
 
 # Default date range (should be read from DB in production)
-DEFAULT_LAST_DATE_RANGE_END: str = "2024-01-01T00:00:00Z"
+DEFAULT_LAST_DATE_RANGE_END: str = "2024-04-12T00:00:00Z"
 #DEFAULT_LAST_DATE_RANGE_END: str = "2026-04-15T00:00:00Z"
 
 
@@ -231,11 +231,11 @@ def test_main() -> int:
             return 1
 
         # Fetch users from Adobe Sign API
-        #all_user_list: List[dict] = api.fetch_all_users()
-        #logger.info(f"Fetched {len(all_user_list)} users from Adobe Sign API")
+        all_user_list: List[dict] = api.fetch_all_users()
+        logger.info(f"Fetched {len(all_user_list)} users from Adobe Sign API")
 
         ## TEST CODE
-        all_user_list = [{'email': ' Test9@eMail.com ','first_name': 'Charlie','last_name': 'Update','status': 'test','id': 'updated_user_id_09'},{'email': ' Test10@eMail.com ','first_name': 'Charlie','last_name': 'Update','status': 'test','id': 'updated_user_id_10'}]
+        # all_user_list = [{'email': ' Test9@eMail.com ','first_name': 'Charlie','last_name': 'Update','status': 'test','id': 'updated_user_id_09'},{'email': ' Test10@eMail.com ','first_name': 'Charlie','last_name': 'Update','status': 'test','id': 'updated_user_id_10'}]
 
         # Business condition: handle empty user list
         if not all_user_list:
@@ -253,7 +253,7 @@ def test_main() -> int:
         #with open(TEST_USER_LIST_FILENAME, "w") as file:
         #    file.write(f"{all_user_list}")
 
-        #SEARCH for new agreement for TEST USER
+        #TEST CODE to test search_new_agreements funciton for a single user TEST_DEV_USER_EMAIL
         from dotenv import dotenv_values
         config = dotenv_values('.env')
         TEST_DEV_USER_EMAIL = config.get("TEST_DEV_USER_EMAIL")
