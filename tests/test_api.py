@@ -30,8 +30,8 @@ FETCH_USER_LIST_ENDPOINT: str = f"{BASE_URL}/api/rest/v6/users"
 SEARCH_ENDPOINT: str = f"{BASE_URL}/api/rest/v6/search"
 
 
-# Valid participant roles for signers
-SIGNER_ROLES: set = {"SIGNER", "APPROVER"}
+# Valid participant roles for signers (includes FORM_FILLER)
+SIGNER_ROLES: set = {"SIGNER", "APPROVER", "FORM_FILLER"}
 
 def get_token_manager() -> TokenManager:
     """Get the shared TokenManager instance (lazy initialization)."""
@@ -130,7 +130,6 @@ def search_agreements(
 
     headers: dict = {
         'Authorization': f"Bearer {token}",
-        'x-ownership-scope': 'OWNED',
         'x-api-user': f'email:{user_email}'
     }
 
@@ -160,6 +159,7 @@ def search_agreements(
     payload: dict = {
             "scope": ["AGREEMENT_ASSETS"],
             "agreementAssetsCriteria": {
+                "role": ["SENDER"],
                 "type": ["AGREEMENT"],
                 "createdDate": {
                     "range": {
@@ -194,18 +194,43 @@ def search_agreements(
             total_hits = agreements_results.get("totalHits", 0)
 
             for agreement in agreement_list:
-                # Extract signers (SIGNER or APPROVER roles)
+                # Extract signers (SIGNER, APPROVER, or FORM_FILLER roles)
                 signers: List[dict] = []
                 participant_list = agreement.get("participantList", [])
-                for participant in participant_list:
-                    roles = participant.get("role", [])
-                    # Check if participant has SIGNER or APPROVER role
-                    if any(role in SIGNER_ROLES for role in roles):
-                        signers.append({
-                            "signer_email": participant.get("email", ""),
-                            "signer_full_name": participant.get("fullName", ""),
-                            "signer_role": roles[0] if roles else ""
-                        })
+
+                # Handle case when owner is also a signer/form filler (no participantList returned)
+                # This happens when agreement has SENDER + SIGNER or SENDER + FORM_FILLER roles
+                owner_roles = agreement.get("role", [])
+                is_owner_also_signer = "SIGNER" in owner_roles and "SENDER" in owner_roles
+                is_owner_also_form_filler = "FORM_FILLER" in owner_roles and "SENDER" in owner_roles
+
+                if is_owner_also_signer and not participant_list:
+                    # Owner is also a signer - add them as a signer manually
+                    logger.debug(f"Owner {user_email} is also a signer for agreement {agreement.get('id')}")
+                    signers.append({
+                        "signer_email": user_email,
+                        "signer_full_name": "",  # Owner full name not in response
+                        "signer_role": "SIGNER"
+                    })
+                elif is_owner_also_form_filler and not participant_list:
+                    # Owner is also a form filler - add them as a signer manually
+                    logger.debug(f"Owner {user_email} is also a form filler for agreement {agreement.get('id')}")
+                    signers.append({
+                        "signer_email": user_email,
+                        "signer_full_name": "",  # Owner full name not in response
+                        "signer_role": "FORM_FILLER"
+                    })
+                else:
+                    # Normal case - extract signers from participantList
+                    for participant in participant_list:
+                        roles = participant.get("role", [])
+                        # Check if participant has SIGNER, APPROVER, or FORM_FILLER role
+                        if any(role in SIGNER_ROLES for role in roles):
+                            signers.append({
+                                "signer_email": participant.get("email", ""),
+                                "signer_full_name": participant.get("fullName", ""),
+                                "signer_role": roles[0] if roles else ""
+                            })
 
                 # Parse dates
                 created_date_str = agreement.get("createdDate", "")
@@ -237,6 +262,13 @@ def search_agreements(
 
     except requests.exceptions.HTTPError as e:
         logger.error(f"Error searching agreements: {e.response.status_code} - {e.response.text}")
+        
+        # Check for INVALID_USER error (401)
+        error_text = e.response.text
+        if "INVALID_USER" in error_text:
+            logger.warning(f"User {user_email} is invalid (INVALID_USER)")
+            raise APIError(f"Invalid user: {user_email}", status_code=e.response.status_code, original_exc=e)
+        
         raise APIError(f"Error searching agreements: {e.response.status_code} - {e.response.text}", status_code=e.response.status_code, original_exc=e)
     except requests.exceptions.RequestException as e:
         logger.error(f"Error searching agreements: {e}")

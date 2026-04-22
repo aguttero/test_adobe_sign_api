@@ -49,6 +49,7 @@ class Agreement(Base):
     # display_date: Mapped[dt.date]
     name: Mapped[str]
     type: Mapped[str]
+    keyword: Mapped[Optional[str]] = mapped_column (index=True)
     status: Mapped[str]
     workflow_id: Mapped[Optional[str]]
     group_id: Mapped[str]
@@ -73,10 +74,11 @@ class AgreementSigner(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     # agreement_id: Mapped[str] = mapped_column(nullable=False, index=True)
-    agreement_id: Mapped[str] = mapped_column(ForeignKey("agreement.id"))
+    agreement_id: Mapped[int] = mapped_column(ForeignKey("agreement.id"))
     signer_email: Mapped[str] = mapped_column(nullable=False, index=True)
     signer_full_name: Mapped[Optional[str]]
     signer_role: Mapped[Optional[str]]
+    signer_order: Mapped[Optional[int]]
 
     agreement: Mapped["Agreement"] = relationship(back_populates="signers")
 
@@ -89,8 +91,18 @@ class SyncHistory(Base):
     __tablename__ = "sync_history"
     
     id: Mapped[int] = mapped_column(primary_key=True)
+    run_id: Mapped[str]
     run_date: Mapped[dt.date]
-    range_start: Mapped[str]
-    range_end: Mapped[str]
-    agreements_found: Mapped[int] = mapped_column(default=0)
+    run_start_time: Mapped[str]
+    run_end_time: Mapped[str]
+    elapsed_run_time: Mapped[str]
+    agrmnt_range_start: Mapped[str]
+    agrmnt_range_end: Mapped[str]
+    agrmnts_found: Mapped[int] = mapped_column(default=0)
     sync_ok: Mapped[bool]
+    errors_found: Mapped[bool]
+    warnings_found: Mapped[bool]
+    critical_found: Mapped[bool]
+    error_qty: Mapped[int]
+    warning_qty: Mapped[int]
+    critical_qty: Mapped[int]

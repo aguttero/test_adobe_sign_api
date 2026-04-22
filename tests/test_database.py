@@ -4,13 +4,13 @@ All database access via SQLAlchemy. No API calls, no token logic.
 """
 from datetime import date, datetime
 import logging
-from typing import List, Type
+from typing import List, Optional, Type
 
-from sqlalchemy import create_engine, select, insert
+from sqlalchemy import create_engine, select, insert, or_
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.exc import SQLAlchemyError
 
-from test_models import Base, User, Agreement, AgreementSigner
+from test_models import Base, User, Agreement, AgreementSigner, SyncHistory
 from test_exceptions import DatabaseError
 
 
@@ -147,7 +147,7 @@ def bulk_insert_list(table_name: Type[Base], input_list: List[dict]) -> None:
 
 def get_existing_emails() -> List[str]:
     """Fetch all existing email addresses from the User table.
-    
+
     Returns:
         List of email strings currently in the database.
     """
@@ -159,6 +159,36 @@ def get_existing_emails() -> List[str]:
         except SQLAlchemyError as e:
             logger.error(f"Failed to fetch existing emails: {e}")
             raise DatabaseError(f"Failed to fetch existing emails: {e}", original_exc=e)
+
+
+def get_all_users(exclude_status: Optional[str] = None) -> List[dict]:
+    """Fetch all users from the User table.
+
+    Args:
+        exclude_status: If provided, exclude users with this status value.
+
+    Returns:
+        List of user dictionaries with 'email' and 'adbe_sign_id'.
+    """
+    with _get_session() as session:
+        try:
+            if exclude_status:
+                # Exclude users with specific status, but include NULL status
+                stmt = select(User).filter(
+                    or_(User.status != exclude_status, User.status.is_(None))
+                )
+            else:
+                stmt = select(User)
+            users = session.execute(stmt).scalars().all()
+            user_list = [
+                {"email": user.email, "adbe_sign_id": user.adbe_sign_id}
+                for user in users
+            ]
+            logger.debug(f"Fetched {len(user_list)} users from database")
+            return user_list
+        except SQLAlchemyError as e:
+            logger.error(f"Failed to fetch all users: {e}")
+            raise DatabaseError(f"Failed to fetch all users: {e}", original_exc=e)
 
 
 def filter_new_users(existing_emails: List[str], input_list: List[dict]) -> List[dict]:
@@ -343,3 +373,150 @@ def agreement_exists(agreement_id: str) -> bool:
         except SQLAlchemyError as e:
             logger.error(f"Failed to check agreement existence: {e}")
             raise DatabaseError(f"Failed to check agreement existence: {e}", original_exc=e)
+
+
+def insert_sync_history(
+    run_id: str,
+    range_start: str,
+    range_end: str
+) -> int:
+    """Insert a new SyncHistory record at the start of execution.
+
+    Args:
+        run_id: Unique run identifier.
+        range_start: Agreement search date range start.
+        range_end: Agreement search date range end.
+
+    Returns:
+        ID of the newly created SyncHistory record.
+    """
+    with _get_session() as session:
+        try:
+            sync_record = SyncHistory(
+                run_id=run_id,
+                run_date=date.today(),
+                run_start_time=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                run_end_time="",
+                elapsed_run_time="",
+                agrmnt_range_start=range_start,
+                agrmnt_range_end=range_end,
+                agrmnts_found=0,
+                sync_ok=False,
+                errors_found=False,
+                warnings_found=False,
+                critical_found=False,
+                error_qty=0,
+                warning_qty=0,
+                critical_qty=0
+            )
+            session.add(sync_record)
+            session.commit()
+            logger.debug(f"Inserted SyncHistory record with ID: {sync_record.id}")
+            return sync_record.id
+        except SQLAlchemyError as e:
+            session.rollback()
+            logger.error(f"Failed to insert SyncHistory: {e}")
+            raise DatabaseError(f"Failed to insert SyncHistory: {e}", original_exc=e)
+
+
+def update_sync_history(
+    sync_id: int,
+    agreements_found: int,
+    sync_ok: bool,
+    elapsed_time: str,
+    end_time: str,
+    error_qty: int = 0,
+    warning_qty: int = 0,
+    critical_qty: int = 0
+) -> None:
+    """Update SyncHistory record at the end of execution.
+
+    Args:
+        sync_id: ID of the SyncHistory record to update.
+        agreements_found: Total agreements found in this run.
+        sync_ok: Whether sync completed successfully.
+        elapsed_time: Elapsed time string (e.g., "0h 5m 30.50s").
+        end_time: End time string in format "YYYY-MM-DD HH:MM:SS".
+        error_qty: Number of errors found.
+        warning_qty: Number of warnings found.
+        critical_qty: Number of critical issues found.
+    """
+    with _get_session() as session:
+        try:
+            stmt = select(SyncHistory).filter_by(id=sync_id)
+            sync_record = session.execute(stmt).scalar_one_or_none()
+
+            if sync_record:
+                sync_record.run_end_time = end_time
+                sync_record.elapsed_run_time = elapsed_time
+                sync_record.agrmnts_found = agreements_found
+                sync_record.sync_ok = sync_ok
+                sync_record.error_qty = error_qty
+                sync_record.warning_qty = warning_qty
+                sync_record.critical_qty = critical_qty
+                sync_record.errors_found = error_qty > 0
+                sync_record.warnings_found = warning_qty > 0
+                sync_record.critical_found = critical_qty > 0
+                session.commit()
+                logger.debug(f"Updated SyncHistory record ID: {sync_id}")
+            else:
+                logger.warning(f"SyncHistory record not found: {sync_id}")
+        except SQLAlchemyError as e:
+            session.rollback()
+            logger.error(f"Failed to update SyncHistory: {e}")
+            raise DatabaseError(f"Failed to update SyncHistory: {e}", original_exc=e)
+
+
+def get_agreement_count() -> int:
+    """Get the current total count of agreements in the database.
+    
+    Returns:
+        Total number of agreements.
+    """
+    with _get_session() as session:
+        try:
+            count = session.query(Agreement).count()
+            logger.debug(f"Current agreement count: {count}")
+            return count
+        except SQLAlchemyError as e:
+            logger.error(f"Failed to get agreement count: {e}")
+            raise DatabaseError(f"Failed to get agreement count: {e}", original_exc=e)
+
+
+def rollback_agreements(since_count: int) -> int:
+    """Delete agreements added after a specific count (for rollback on failure).
+    
+    This deletes the newest agreements, keeping only the older ones (up to since_count).
+    
+    Args:
+        since_count: The count threshold. Agreements with ID > this will be deleted.
+        
+    Returns:
+        Number of agreements deleted.
+    """
+    with _get_session() as session:
+        try:
+            # Get IDs of agreements to delete (those with ID > since_count)
+            # We need to get the (since_count + 1)th agreement and all after it
+            # Since IDs are auto-increment, we delete where id > since_count
+            
+            # First, get the agreement IDs that need to stay
+            agreements_to_keep = session.query(Agreement).limit(since_count).all()
+            keep_ids = [a.id for a in agreements_to_keep]
+            
+            if keep_ids:
+                # Delete agreements not in the keep list
+                deleted = session.query(Agreement).filter(
+                    Agreement.id.notin_(keep_ids)
+                ).delete(synchronize_session=False)
+            else:
+                # If since_count is 0 or no agreements to keep, delete all
+                deleted = session.query(Agreement).delete()
+            
+            session.commit()
+            logger.info(f"Rolled back {deleted} agreements")
+            return deleted
+        except SQLAlchemyError as e:
+            session.rollback()
+            logger.error(f"Failed to rollback agreements: {e}")
+            raise DatabaseError(f"Failed to rollback agreements: {e}", original_exc=e)
