@@ -53,11 +53,45 @@ All credentials come from environment variables via `dotenv_values(".env")`:
 
 ## Coding Conventions
 - Type hints required everywhere
-- Functions log at DEBUG/INFO level, main.py logs pipeline outcomes
 - Custom exceptions wrap library exceptions (never leak raw sqlite3/requests errors)
 - test_database.py only does DB ops (no API calls)
 - test_api.py only does HTTP (no business logic on empty results)
 - main.py handles all business condition checks (empty lists, etc.)
+
+## Logging Rules
+
+### Log Level Assignment
+| Level | When to Use |
+|-------|-------------|
+| **DEBUG** | Internal function detail (bytes read, rows parsed, pagination cursors) |
+| **INFO** | Business milestones (token refreshed, rows inserted, pipeline complete, users fetched, agreements found) |
+| **WARNING** | Recoverable unexpected condition (empty result, skipped step, user invalid) |
+| **ERROR** | Caught failure, handled (auth failed, API unreachable, DB error) |
+| **CRITICAL** | Unrecoverable failure, app cannot continue |
+
+### Key Principles
+- **Functions** log operational detail at DEBUG/INFO level
+- **test_main() function in main.py** logs pipeline-level outcomes at INFO/WARNING/ERROR
+- **Never log the same event in both the function and the caller**
+- test_utils.py provides logging helpers: `log_debug()`, `log_info()`, `log_warning()`, `log_error()`, `log_critical()`
+
+### Module Logging Responsibilities
+- `test_exceptions.py` — No logging (pure exception classes)
+- `test_utils.py` — No logging (pure helper functions)
+- `test_models.py` — No logging (pure data structures)
+- `test_auth.py` — DEBUG for token operations, ERROR for failures
+- `test_database.py` — DEBUG for DB operations, INFO for inserts, ERROR for failures
+- `test_api.py` — DEBUG for HTTP details, INFO for API milestones, ERROR for failures
+- `test_monitor.py` — DEBUG for I/O operations, WARNING for read failures
+- `test_main.py` — INFO for business outcomes, WARNING for skipped steps, ERROR/CRITICAL for failures
+
+### Logging Format
+```python
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s [%(levelname)s] %(module)s.%(funcName)s — %(message)s"
+)
+```
 
 ## What NOT to Modify
 - Files in `src/`

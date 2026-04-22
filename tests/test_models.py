@@ -106,3 +106,4 @@ class SyncHistory(Base):
     error_qty: Mapped[int]
     warning_qty: Mapped[int]
     critical_qty: Mapped[int]
+    annotations: Mapped[Optional[str]]

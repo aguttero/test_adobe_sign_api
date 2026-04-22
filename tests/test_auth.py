@@ -37,7 +37,7 @@ def _refresh_token(client_id: str, client_secret: str, refresh_token: str) -> Tu
         AuthError: If token refresh fails.
     """
     import os
-    logger.info("Refreshing token from Adobe Sign API")    
+    logger.debug("Refreshing token from Adobe Sign API")    
 
     payload = {
         'grant_type': 'refresh_token',

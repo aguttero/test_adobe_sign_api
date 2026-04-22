@@ -27,7 +27,7 @@ TEST_USER_LIST_FILENAME: str = f"{SECRETS_FOLDER}test_user_list_mock_v02.txt"
 
 
 # Default date range (should be read from DB in production)
-DEFAULT_LAST_DATE_RANGE_END: str = "2026-04-20T00:00:00Z"
+DEFAULT_LAST_DATE_RANGE_END: str = "2020-01-11T00:00:00Z"
 #DEFAULT_LAST_DATE_RANGE_END: str = "2026-04-15T00:00:00Z"
 DAYS_TO_ADD_TO_RANGE: int = 2
 
