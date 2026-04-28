@@ -13,6 +13,7 @@ import logging
 from datetime import date, datetime, timedelta
 from typing import List, Tuple
 
+import test_models as models
 import test_api as api
 import test_database as db
 import test_utils as utils
@@ -34,10 +35,13 @@ DAYS_TO_ADD_TO_RANGE: int = 2
 
 def _configure_logging() -> None:
     """Configure logging format once at startup."""
+    now = datetime.now()
+    filestamp = now.strftime("%Y%m%d_%H_%M")
+
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.DEBUG)
 
-    file_handler = logging.FileHandler("tests/logs/test_log.log")
+    file_handler = logging.FileHandler(f"tests/logs/{filestamp}.log")
     file_handler.setLevel(logging.DEBUG)
 
     logging.basicConfig(
@@ -128,7 +132,7 @@ def search_new_agreements(
     Returns:
         List of agreement dictionaries.
     """
-    logger.info(f"Searching agreements for {user_email} from {date_range_start} to {date_range_end}")
+    # logger.debug(f"Searching agreements for {user_email} from {date_range_start} to {date_range_end}")
 
     # Search agreements via API
     agreement_list: List[dict] = api.search_agreements(
@@ -137,7 +141,7 @@ def search_new_agreements(
         date_range_start=date_range_start,
         date_range_end=date_range_end
     )
-    logger.info(f"Found {len(agreement_list)} agreements for {user_email}")
+    # logger.debug(f"Found {len(agreement_list)} agreements for {user_email}")
 
     # Get user from DB to associate agreements
     user = db.get_user_by_email(user_email)
@@ -147,7 +151,7 @@ def search_new_agreements(
 
     # Persist agreements to DB
     agreements_inserted = db.insert_agreements(agreement_list, user.id)
-    logger.info(f"Inserted {agreements_inserted} agreements for {user_email}")
+    # logger.debug(f"Inserted {agreements_inserted} agreements for {user_email}")
 
     return agreement_list
 
@@ -328,6 +332,11 @@ def test_main() -> int:
     last_end_date_str: str = DEFAULT_LAST_DATE_RANGE_END
     _, new_end_date_str = compute_search_date_range(last_end_date_str)
     
+    # Validate date range is in the past
+    if not validate_range_in_past(new_end_date_str):
+        logger.critical("Date range validation failed - exiting")
+        return 1
+    
     # Insert SyncHistory record at start
     try:
         sync_history_id = db.insert_sync_history(
@@ -338,9 +347,9 @@ def test_main() -> int:
         logger.info(f"Starting test_main execution - Run ID: {run_id}")
         logger.info(f"Start time: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
     except Exception as e:
-        logger.error(f"Failed to create sync history record: {e}")
-        # Continue execution even if sync history fails
-    
+        logger.critical(f"Failed to create sync history record: {e} - exiting")
+        return 1    
+
     # Get initial agreement count for rollback tracking
     try:
         initial_agreement_count = db.get_agreement_count()
@@ -349,30 +358,31 @@ def test_main() -> int:
         logger.warning(f"Could not get initial agreement count: {e}")
 
     try:
-        # Compute search date range
-        last_end_date_str: str = DEFAULT_LAST_DATE_RANGE_END
-        _, new_end_date_str = compute_search_date_range(last_end_date_str)
+        # === SYNC GROUPS FIRST (needed for agreements FK) ===
+        try:
+            api_groups_list: list[dict] = api.fetch_all_groups()
+            ## TODO validate all_grp_list len > 0
+            logger.debug (f"Group list len: {len(api_groups_list)} TODO: NEED TO VALIDATE THIS IS > 0")
 
-        # Validate date range is in the past
-        if not validate_range_in_past(new_end_date_str):
-            logger.error("Date range validation failed - exiting")
+            parsed_groups = models.parse_groups(api_groups_list)
+            db.upsert_groups(parsed_groups)
+
+        except Exception as e:
+            logger.error(f"Failed to sync groups: {e}")
             return 1
 
-        ## PROD CODE commented for TEST
-        #Fetch users from Adobe Sign API
-        all_user_list: List[dict] = api.fetch_all_users()
-        logger.info(f"Fetched {len(all_user_list)} users from Adobe Sign API")
+        # Fetch users from Adobe Sign API
+        api_user_list: List[dict] = api.fetch_all_users()
 
-        ## TEST CODE
-        # all_user_list = [{'email': ' Test9@eMail.com ','first_name': 'Charlie','last_name': 'Update','status': 'test','id': 'updated_user_id_09'},{'email': ' Test10@eMail.com ','first_name': 'Charlie','last_name': 'Update','status': 'test','id': 'updated_user_id_10'}]
+      
 
         # Business condition: handle empty user list
-        if not all_user_list:
+        if not api_user_list:
             logger.warning("No users fetched from API - pipeline aborted")
             return 1
 
         # Transform API response keys to DB schema
-        transformed_user_list: List[dict] = db.transform_user_list_keys(all_user_list)
+        transformed_user_list: List[dict] = db.transform_user_list_keys(api_user_list)
         logger.debug(f"Transformed {len(transformed_user_list)} user records")
 
         # Insert only new users (not in existing email list)
@@ -447,8 +457,59 @@ def test_main() -> int:
         _handle_failure(sync_history_id, initial_agreement_count, start_time, run_id)
         return 1
 
+def test():
+    """Test entry point for the test runner.
+
+    Returns:
+        Exit code (0 for success, 1 for errors).
+    """
+
+    global logger
+    logger = logging.getLogger(__name__)
+    _configure_logging()
+      # === SYNC GROUPS FIRST (needed for agreements FK) ===
+    
+    try:
+        api_groups_list: list[dict] = api.fetch_all_groups()
+        ## TODO validate all_grp_list len > 0
+        logger.debug (f"Group list len: {len(api_groups_list)} TODO: NEED TO VALIDATE THIS IS > 0")
+
+        parsed_groups = models.parse_groups(api_groups_list)
+        # print ("parsed_groups:\n", parsed_groups)
+        db.upsert_groups(parsed_groups)
+
+    except Exception as e:
+        logger.error(f"Failed to sync groups: {e}")
+        return 1
+        # Continue without groups - agreements will have NULL group_id_ref
+    
+    ### cargar agreements para 1 usuario en rango de fechas de TEST
+    ## DATE RANGE:
+    last_end_date_str: str = DEFAULT_LAST_DATE_RANGE_END
+    _, new_end_date_str = compute_search_date_range(last_end_date_str)
+
+    ## FETCH AGREEMENTS for 1 user
+    ## DB user_id = 571 / 837
+    from dotenv import dotenv_values
+    config = dotenv_values(".env")
+    TST_USR_1 = config.get("TEST_DEV_USER_EMAIL")
+    TST_USR_2 = config.get("TEST_DEV_USER_EMAIL2")
+
+    test_user_list = [TST_USR_1,TST_USR_2]
+
+    
+
+
+
+
+
+
+    return 0
+
+
 
 if __name__ == "__main__":
-    exit_code: int = test_main()
+    exit_code: int = test()
+    # exit_code: int = test_main()
     logging.info(f"Exit code: {exit_code}")
     exit(exit_code)

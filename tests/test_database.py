@@ -10,7 +10,7 @@ from sqlalchemy import create_engine, select, insert, or_
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.exc import SQLAlchemyError
 
-from test_models import Base, User, Agreement, AgreementSigner, SyncHistory
+from test_models import Base, User, Agreement, AgreementSigner, SyncHistory, Group, parse_groups
 from test_exceptions import DatabaseError
 
 
@@ -316,15 +316,23 @@ def insert_agreements(agreement_list: List[dict], user_id: int) -> int:
                     logger.debug(f"Agreement {agr.get('agreement_id')} already exists, skipping")
                     continue
 
+                # Lookup Group FK from API groupId
+                api_group_id = agr.get("group_id_ref", "")
+                group_fk = None
+                if api_group_id:
+                    group_stmt = select(Group).filter_by(group_id=api_group_id)
+                    group = session.execute(group_stmt).scalar_one_or_none()
+                    if group:
+                        group_fk = group.id
+
                 # Create agreement record
                 new_agreement = Agreement(
                     agreement_id=agr.get("agreement_id"),
-                    # display_date=_parse_date(agr.get("created_date", "")),
                     name=agr.get("name", ""),
                     type="AGREEMENT",
                     status=agr.get("status", ""),
                     workflow_id=agr.get("workflow_id", ""),
-                    group_id=agr.get("group_id", ""),
+                    group_id_ref=group_fk,
                     created_date=_parse_date(agr.get("created_date", "")),
                     modified_date=_parse_date(agr.get("modified_date", "")),
                     user_id=user_id
@@ -336,7 +344,6 @@ def insert_agreements(agreement_list: List[dict], user_id: int) -> int:
                 signers = agr.get("signers", [])
                 for signer in signers:
                     new_signer = AgreementSigner(
-                        # agreement_id=agr.get("agreement_id"),
                         agreement_id=new_agreement.id,
                         signer_email=signer.get("signer_email", ""),
                         signer_full_name=signer.get("signer_full_name", ""),
@@ -347,7 +354,7 @@ def insert_agreements(agreement_list: List[dict], user_id: int) -> int:
                 agreements_inserted += 1
 
             session.commit()
-            logger.info(f"Inserted {agreements_inserted} agreements")
+            logger.debug(f"Inserted {agreements_inserted} agreements")
         except SQLAlchemyError as e:
             session.rollback()
             logger.error(f"Failed to insert agreements: {e}")
@@ -520,3 +527,73 @@ def rollback_agreements(since_count: int) -> int:
             session.rollback()
             logger.error(f"Failed to rollback agreements: {e}")
             raise DatabaseError(f"Failed to rollback agreements: {e}", original_exc=e)
+
+
+def get_group_by_api_id(api_group_id: str) -> Optional[Group]:
+    """Get a Group by its API groupId.
+
+    Args:
+        api_group_id: The groupId from Adobe Sign API.
+
+    Returns:
+        Group object if found, None otherwise.
+    """
+    with _get_session() as session:
+        try:
+            stmt = select(Group).filter_by(group_id=api_group_id)
+            group = session.execute(stmt).scalar_one_or_none()
+            logger.debug(f"Fetched group by API ID: {api_group_id}")
+            return group
+        except SQLAlchemyError as e:
+            logger.error(f"Failed to fetch group by API ID: {e}")
+            raise DatabaseError(f"Failed to fetch group by API ID: {e}", original_exc=e)
+
+
+def upsert_groups(all_groups_list: list[Group])-> None:
+    """Upsert group(s) into the database using group_id as natural key.
+    Uses session.merge() after resolving the internal PK via group_id lookup (PREFETCH).
+
+    Args:
+        group_record: Group instance with keys: group_id, name, created_date, last_sync, is_default_grp.
+    """
+   
+    summary = {"inserted": 0, "updated": 0, "skipped": 0, "errors": []}
+
+    try:
+        with _get_session() as session:
+            
+            # Single prefetch — map group_id → internal PK for the whole batch
+            existing: dict = {
+                group_id: pk
+                for pk, group_id in session.query(Group.id, Group.group_id).all()
+            }
+        ### TEST CODE ###
+        print ("Dicciontario de PKs:\n", existing)
+        print ("- - - - -")
+        ### END TEST CODE ####
+
+        for group_record in all_groups_list:
+            internal_pk = existing.get(group_record.group_id)      # None → INSERT, int → UPDATE
+
+            is_new_record = internal_pk is None
+            print (f"is_new_record value: {is_new_record}")
+
+            group_record.id = internal_pk           # None lets DB assign PK on insert
+
+            session.merge(group_record)             # INSERT or UPDATE based on PK
+
+            if is_new_record:
+                existing[group_record.group_id] = ...            # guard intra-batch duplicates - updates table again if second api hit is received for same group_id
+                summary["inserted"] += 1
+            else:
+                summary["updated"] += 1
+
+        
+        logger.debug(f"Upserted group: {group_record.group_id}")
+    except SQLAlchemyError as e:
+        session.rollback()
+        logger.error(f"Failed to upsert group: {group_record} Error: {e}")
+        summary["skipped"] += 1
+        raise DatabaseError(f"Failed to upsert group: {e}", original_exc=e)
+    session.commit()
+    logger.debug(f"{summary}")

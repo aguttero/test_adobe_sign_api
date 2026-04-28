@@ -27,6 +27,7 @@ BASE_URL: str = f"https://api.{SHARD}.echosign.com"
 
 # ENDPOINTS
 FETCH_USER_LIST_ENDPOINT: str = f"{BASE_URL}/api/rest/v6/users"
+FETCH_GROUPS_ENDPOINT: str = f"{BASE_URL}/api/rest/v6/groups"
 SEARCH_ENDPOINT: str = f"{BASE_URL}/api/rest/v6/search"
 
 
@@ -100,6 +101,61 @@ def fetch_all_users() -> List[dict]:
     return all_users
 
 
+def fetch_all_groups() -> List[dict]:
+    """Fetch all groups from Adobe Sign API.
+
+    Returns:
+        List of group dictionaries from the API.
+
+    Raises:
+        APIError: If the API call fails.
+    """
+    all_groups: List[dict] = []
+    cursor: Optional[str] = None
+    counter: int = 0
+    token: str = get_token_manager().get_token()
+
+    endpoint: str = FETCH_GROUPS_ENDPOINT
+    logger.debug(f"Fetching groups from {endpoint}")
+
+    headers: dict = {
+        'Authorization': f"Bearer {token}"
+    }
+    parameters: dict = {
+        'cursor': None
+    }
+
+    try:
+        while True:
+            if cursor:
+                parameters['cursor'] = cursor
+
+            api_response = requests.get(endpoint, headers=headers, params=parameters)
+            api_response.raise_for_status()
+
+            response_data = api_response.json()
+            all_groups.extend(response_data.get('groupInfoList', []))
+
+            cursor = response_data.get('page', {}).get('nextCursor')
+
+            counter += 1
+            logger.debug(f"counter: {counter}, cursor: {cursor}")
+
+            if not cursor:
+                logger.debug("No more cursor")
+                break
+
+    except requests.exceptions.HTTPError as e:
+        logger.error(f"Error fetching groups: {e.response.status_code} - {e.response.text}")
+        raise APIError(f"Error fetching groups: {e.response.status_code} - {e.response.text}", status_code=e.response.status_code, original_exc=e)
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error fetching groups: {e}")
+        raise APIError(f"Error fetching groups: {e}", original_exc=e)
+
+    logger.debug(f"Fetched {len(all_groups)} groups")
+    return all_groups
+
+
 def search_agreements(
     user_email: str,
     # user_adbe_sign_id: str,
@@ -126,7 +182,7 @@ def search_agreements(
 
     token: str = get_token_manager().get_token()
     endpoint: str = SEARCH_ENDPOINT
-    logger.info(f"Searching agreements for {user_email} from {date_range_start} to {date_range_end}")
+    logger.debug(f"Searching agreements for {user_email} from {date_range_start} to {date_range_end}")
 
     headers: dict = {
         'Authorization': f"Bearer {token}",
@@ -238,9 +294,8 @@ def search_agreements(
 
                 transformed = {
                     "email": user_email,
-                    # "adbe_sign_id": user_adbe_sign_id,
                     "adbe_sign_id": agreement.get("userId"),
-                    "group_id": agreement.get("groupId", ""),
+                    "group_id_ref": agreement.get("groupId", ""),  # API groupId -> FK lookup in DB
                     "signers": signers,
                     "created_date": created_date_str,
                     "modified_date": modified_date_str,
@@ -254,7 +309,7 @@ def search_agreements(
             # Check for next page
             page_info = agreements_results.get("searchPageInfo", {})
             next_index = page_info.get("nextIndex")
-            logger.debug(f"next_index value: {next_index!r} - data type {type(next_index)}")
+            # logger.debug(f"next_index value: {next_index!r} - data type {type(next_index)}")
 
             if next_index is None:
                 logger.debug("No more pages")
@@ -274,5 +329,5 @@ def search_agreements(
         logger.error(f"Error searching agreements: {e}")
         raise APIError(f"Error searching agreements: {e}", original_exc=e)
 
-    logger.info(f"Found {len(all_agreements)} agreements for {user_email}")
+    logger.debug(f"Found {len(all_agreements)} agreements for {user_email}")
     return all_agreements
