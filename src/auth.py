@@ -9,14 +9,15 @@ from dotenv import dotenv_values
 import requests
 from typing import Optional, Tuple
 
-from test_exceptions import AuthError
+from exceptions import AuthError
+
 
 logger = logging.getLogger(__name__)
 
 # CONFIG - Credentials from environment variables
 config = dotenv_values(".env")
-SHARD = config.get("ADOBE_SHARD", "na1")
-BASE_URL = f"https://api.{SHARD}.echosign.com"
+SHARD: str = config.get("ADOBE_SHARD","na1")
+BASE_URL: str = f"https://api.{SHARD}.echosign.com"
 REFRESH_ENDPOINT = f"{BASE_URL}/oauth/v2/refresh"
 
 TOKEN_BUFFER_SECONDS = 300
@@ -42,7 +43,7 @@ def _refresh_token(client_id: str, client_secret: str, refresh_token: str) -> Tu
     payload = {
         'grant_type': 'refresh_token',
         'client_id': client_id,
-        'client_secret': client_secret,
+        'client_client_secret': client_secret,
         'refresh_token': refresh_token
     }
 
@@ -116,4 +117,3 @@ class TokenManager:
         token_data = _refresh_token(self.client_id, self.client_secret, self.refresh_token)
         self._token = token_data[0]
         self._expires_at = time.time() + token_data[1]
-
