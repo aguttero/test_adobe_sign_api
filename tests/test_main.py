@@ -221,6 +221,33 @@ def search_agreements_for_users(
 
     return total_users, users_with_zero, users_with_agreements
 
+def sync_agreements_v2(user_email: str, date_range_start: str, date_range_end: str):
+    try:
+        # single API call — raw contains both agreement and signer data
+        api_raw      = api.search_agreements(user_email, date_range_start, date_range_end)
+        group_lookup = db.get_group_pk()
+
+        # parse both from the same api_raw payload
+        agreements   = models.parse_agreements(api_raw, group_lookup)
+        signers      = models.parse_agreement_signers(api_raw)
+
+        if not agreements:
+            log.warning("No valid agreements to upsert — skipping")
+            return
+
+        # agreements must be persisted before signers — FK constraint
+        db.upsert_agreements(agreements)
+        db.upsert_agreement_signers(signers)
+
+        log.info("Agreement and signer sync completed successfully")
+
+    except AuthError as e:
+        logger.error(f"Authentication failed: {e}")
+    except APIError as e:
+        logger.error(f"API error fetching agreements: {e}")
+    except DatabaseError as e:
+        logger.error(f"DB error during agreement sync: {e}")    
+
 
 def sync_agreements_for_all_users(date_range_start: str, date_range_end: str) -> Tuple[int, int, int]:
     """Search and persist new agreements for all users in the database.
@@ -312,7 +339,7 @@ def _handle_failure(
     logger.info(f"Run ID: {run_id} - FAILED")
 
 
-def test_main() -> int:
+def main() -> int:
     """Main entry point for the test runner.
 
     Returns:
@@ -328,36 +355,37 @@ def test_main() -> int:
     initial_agreement_count: int = 0
     sync_history_id: int = 0
     
-    # Compute date range
-    last_end_date_str: str = DEFAULT_LAST_DATE_RANGE_END
-    _, new_end_date_str = compute_search_date_range(last_end_date_str)
-    
-    # Validate date range is in the past
-    if not validate_range_in_past(new_end_date_str):
-        logger.critical("Date range validation failed - exiting")
-        return 1
-    
-    # Insert SyncHistory record at start
     try:
-        sync_history_id = db.insert_sync_history(
-            run_id=run_id,
-            range_start=last_end_date_str,
-            range_end=new_end_date_str
-        )
-        logger.info(f"Starting test_main execution - Run ID: {run_id}")
-        logger.info(f"Start time: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
-    except Exception as e:
-        logger.critical(f"Failed to create sync history record: {e} - exiting")
-        return 1    
+        # Compute date range
+        last_end_date_str: str = DEFAULT_LAST_DATE_RANGE_END
+        _, new_end_date_str = compute_search_date_range(last_end_date_str)
+        
+        # Validate date range is in the past
+        if not validate_range_in_past(new_end_date_str):
+            logger.critical("Date range validation failed - exiting")
+            return 1
+        
+        # Insert SyncHistory record at start
+        try:
+            sync_history_id = db.insert_sync_history(
+                run_id=run_id,
+                range_start=last_end_date_str,
+                range_end=new_end_date_str
+            )
+            logger.info(f"Starting test_main execution - Run ID: {run_id}")
+            logger.info(f"Start time: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+        except Exception as e:
+            logger.critical(f"Failed to create sync history record: {e} - exiting")
+            return 1    
 
-    # Get initial agreement count for rollback tracking
-    try:
-        initial_agreement_count = db.get_agreement_count()
-        logger.debug(f"Initial agreement count: {initial_agreement_count}")
-    except Exception as e:
-        logger.warning(f"Could not get initial agreement count: {e}")
+        # Get initial agreement count for rollback tracking
+        try:
+            initial_agreement_count = db.get_agreement_count()
+            logger.debug(f"Initial agreement count: {initial_agreement_count}")
+        except Exception as e:
+            logger.warning(f"Could not get initial agreement count: {e}")
 
-    try:
+    
         # === SYNC GROUPS FIRST (needed for agreements FK) ===
         try:
             api_groups_list: list[dict] = api.fetch_all_groups()
@@ -370,6 +398,13 @@ def test_main() -> int:
         except Exception as e:
             logger.error(f"Failed to sync groups: {e}")
             return 1
+
+        ## TODO UPDATE GROUP FK RESOLUTION
+
+        ## TODO SYNC WORKFLOWS
+
+        ## TODO UPDATE WORKFLOW FK RESOLUTION
+
 
         # Fetch users from Adobe Sign API
         api_user_list: List[dict] = api.fetch_all_users()
@@ -457,47 +492,62 @@ def test_main() -> int:
         _handle_failure(sync_history_id, initial_agreement_count, start_time, run_id)
         return 1
 
-def test():
-    """Test entry point for the test runner.
-
+def test_dev_main():
+    """This is for testing single processes while developing. 
+    
     Returns:
         Exit code (0 for success, 1 for errors).
     """
 
     global logger
-    logger = logging.getLogger(__name__)
     _configure_logging()
+    logger = logging.getLogger(__name__)
+
+
       # === SYNC GROUPS FIRST (needed for agreements FK) ===
-    
-    try:
-        api_groups_list: list[dict] = api.fetch_all_groups()
-        ## TODO validate all_grp_list len > 0
-        logger.debug (f"Group list len: {len(api_groups_list)} TODO: NEED TO VALIDATE THIS IS > 0")
+    # try:
+    #     api_groups_list: list[dict] = api.fetch_all_groups()
+    #     ## TODO validate all_grp_list len > 0
+    #     logger.debug (f"Group list len: {len(api_groups_list)} TODO: NEED TO VALIDATE THIS IS > 0")
 
-        parsed_groups = models.parse_groups(api_groups_list)
-        # print ("parsed_groups:\n", parsed_groups)
-        db.upsert_groups(parsed_groups)
+    #     parsed_groups = models.parse_groups(api_groups_list)
+    #     # print ("parsed_groups:\n", parsed_groups)
+    #     db.upsert_groups(parsed_groups)
 
-    except Exception as e:
-        logger.error(f"Failed to sync groups: {e}")
-        return 1
-        # Continue without groups - agreements will have NULL group_id_ref
+    # except Exception as e:
+    #     logger.error(f"Failed to sync groups: {e}")
+    #     return 1
+    #     # Continue without groups - agreements will have NULL group_id_ref
     
+    ## Group FK resolution
+    group_pk_lookup: dict = db.get_group_pk()
+    print ("group_id_lookup:", group_pk_lookup)
+
+
     ### cargar agreements para 1 usuario en rango de fechas de TEST
     ## DATE RANGE:
     last_end_date_str: str = DEFAULT_LAST_DATE_RANGE_END
     _, new_end_date_str = compute_search_date_range(last_end_date_str)
 
-    ## FETCH AGREEMENTS for 1 user
+    ## FETCH AGREEMENTS for 2 users
     ## DB user_id = 571 / 837
     from dotenv import dotenv_values
     config = dotenv_values(".env")
-    TST_USR_1 = config.get("TEST_DEV_USER_EMAIL")
+    TST_USR_1: str = config.get("TEST_DEV_USER_EMAIL")
     TST_USR_2 = config.get("TEST_DEV_USER_EMAIL2")
 
     test_user_list = [TST_USR_1,TST_USR_2]
-
+    print ("test_user_list:", test_user_list)
+    # for user in test_user_list:
     
+    api_user_agreements = api.search_agreements_old(TST_USR_1,last_end_date_str, new_end_date_str)
+
+
+    ## Persist agreement and signers in DB
+    ## 
+
+    # parsed_agreements = 
+
 
 
 
@@ -509,7 +559,7 @@ def test():
 
 
 if __name__ == "__main__":
-    exit_code: int = test()
+    exit_code: int = test_dev_main()
     # exit_code: int = test_main()
     logging.info(f"Exit code: {exit_code}")
     exit(exit_code)

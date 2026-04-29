@@ -597,3 +597,25 @@ def upsert_groups(all_groups_list: list[Group])-> None:
         raise DatabaseError(f"Failed to upsert group: {e}", original_exc=e)
     session.commit()
     logger.debug(f"{summary}")
+
+def get_group_pk()-> dict:
+    with _get_session() as session:
+        results = session.query(Group.id, Group.group_id).all() # List with tuples
+
+    existing = {}
+    for pk, group_id in results:
+        existing[group_id] = pk
+
+    ## with dictionary comprehension
+        # existing: dict = {
+        #         group_id: pk
+        #         for pk, group_id in session.query(Group.id, Group.group_id).all()
+        #     }    
+    ##
+
+    logger.debug(f"Generated group_id lookup with {len(existing)} records")
+    ### TEST CODE ###
+    print ("Dicciontario de PKs:\n", existing)
+    print ("- - - - -")
+    ### END TEST CODE ####
+    return existing

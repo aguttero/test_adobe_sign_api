@@ -156,17 +156,15 @@ def fetch_all_groups() -> List[dict]:
     return all_groups
 
 
-def search_agreements(
+def search_agreements_old(
     user_email: str,
-    # user_adbe_sign_id: str,
     date_range_start: str,
     date_range_end: str
 ) -> List[dict]:
     """Search agreements for a given user within a date range.
 
     Args:
-        user_email: Email address of the agreement owner.
-        user_adbe_sign_id: Adobe Sign user ID of the agreement owner.
+        user_email: Email address of the agreement sender.
         date_range_start: Start date for search (ISO format).
         date_range_end: End date for search (ISO format).
 
@@ -189,29 +187,6 @@ def search_agreements(
         'x-api-user': f'email:{user_email}'
     }
 
-    # payload: dict = {
-    #     "query": "*",
-    #     "filterRules": [
-    #         {
-    #             "field": "ROLES",
-    #             "operator": "EQUALS",
-    #             "values": ["SENDER"]
-    #         },
-    #         {
-    #             "field": "CREATION_DATE",
-    #             "operator": "AFTER",
-    #             "values": [date_range_start]
-    #         },
-    #         {
-    #             "field": "CREATION_DATE",
-    #             "operator": "BEFORE",
-    #             "values": [date_range_end]
-    #         }
-    #     ],
-    #     "pagination": {
-    #         "pageSize": 100
-    #     }
-    # }
     payload: dict = {
             "scope": ["AGREEMENT_ASSETS"],
             "agreementAssetsCriteria": {
@@ -234,7 +209,6 @@ def search_agreements(
     try:
         while True:
             if next_index is not None:
-                #payload["pagination"]["startCursor"] = next_index
                 payload["agreementAssetsCriteria"]["startIndex"] = next_index
 
             api_response = requests.post(endpoint, headers=headers, json=payload)
@@ -303,6 +277,156 @@ def search_agreements(
                     "agreement_id": agreement.get("id", ""),
                     "workflow_id": agreement.get("workflowId", ""),
                     "status": agreement.get("status", "")
+                }
+                all_agreements.append(transformed)
+
+            # Check for next page
+            page_info = agreements_results.get("searchPageInfo", {})
+            next_index = page_info.get("nextIndex")
+            # logger.debug(f"next_index value: {next_index!r} - data type {type(next_index)}")
+
+            if next_index is None:
+                logger.debug("No more pages")
+                break
+
+    except requests.exceptions.HTTPError as e:
+        logger.error(f"Error searching agreements: {e.response.status_code} - {e.response.text}")
+        
+        # Check for INVALID_USER error (401)
+        error_text = e.response.text
+        if "INVALID_USER" in error_text:
+            logger.warning(f"User {user_email} is invalid (INVALID_USER)")
+            raise APIError(f"Invalid user: {user_email}", status_code=e.response.status_code, original_exc=e)
+        
+        raise APIError(f"Error searching agreements: {e.response.status_code} - {e.response.text}", status_code=e.response.status_code, original_exc=e)
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error searching agreements: {e}")
+        raise APIError(f"Error searching agreements: {e}", original_exc=e)
+
+    logger.debug(f"Found {len(all_agreements)} agreements for {user_email}")
+    return all_agreements
+
+def search_agreements(
+    user_email: str,
+    date_range_start: str,
+    date_range_end: str
+) -> List[dict]:
+    """Search agreements for a given user within a date range.
+
+    Args:
+        user_email: Email address of the agreement sender.
+        date_range_start: Start date for search (ISO format).
+        date_range_end: End date for search (ISO format).
+
+    Returns:
+        List of agreement dictionaries with signers.
+
+    Raises:
+        APIError: If the API call fails.
+    """
+    all_agreements: List[dict] = []
+    next_index: Optional[int] = None
+    page_counter: int = 0
+
+    token: str = get_token_manager().get_token()
+    endpoint: str = SEARCH_ENDPOINT
+    logger.debug(f"Searching agreements for {user_email} from {date_range_start} to {date_range_end}")
+
+    headers: dict = {
+        'Authorization': f"Bearer {token}",
+        'x-api-user': f'email:{user_email}'
+    }
+
+    payload: dict = {
+            "scope": ["AGREEMENT_ASSETS"],
+            "agreementAssetsCriteria": {
+                "role": ["SENDER"],
+                "type": ["AGREEMENT"],
+                "createdDate": {
+                    "range": {
+                        "min": date_range_start,
+                        "max": date_range_end
+                    }
+                },
+                "startIndex": 0,
+                "pageSize": 100,
+                "status": ["SIGNED"],
+                "sortByField": "CREATED_DATE",
+                "sortOrder": "ASC"
+            }
+        }
+
+    try:
+        while True:
+            if next_index is not None:
+                payload["agreementAssetsCriteria"]["startIndex"] = next_index
+
+            api_response = requests.post(endpoint, headers=headers, json=payload)
+            api_response.raise_for_status()
+
+            response_data = api_response.json()
+            page_counter += 1
+            logger.debug(f"Page {page_counter}, status: {api_response.status_code}")
+
+            # Parse agreements from response
+            agreements_results = response_data.get("agreementAssetsResults", {})
+            agreement_list = agreements_results.get("agreementAssetsResultList", [])
+            total_hits = agreements_results.get("totalHits", 0)
+
+            for agreement in agreement_list:
+                # Extract signers (SIGNER, APPROVER, or FORM_FILLER roles)
+                signers: List[dict] = []
+                participant_list = agreement.get("participantList", [])
+
+                # Handle case when owner is also a signer/form filler (no participantList returned)
+                # This happens when agreement has SENDER + SIGNER or SENDER + FORM_FILLER roles
+                owner_roles = agreement.get("role", [])
+                is_owner_also_signer = "SIGNER" in owner_roles and "SENDER" in owner_roles
+                is_owner_also_form_filler = "FORM_FILLER" in owner_roles and "SENDER" in owner_roles
+
+                if is_owner_also_signer and not participant_list:
+                    # Owner is also a signer - add them as a signer manually
+                    logger.debug(f"Owner {user_email} is also a signer for agreement {agreement.get('id')}")
+                    signers.append({
+                        "signer_email": user_email,
+                        "signer_full_name": "",  # Owner full name not in response
+                        "signer_role": "SIGNER"
+                    })
+                elif is_owner_also_form_filler and not participant_list:
+                    # Owner is also a form filler - add them as a signer manually
+                    logger.debug(f"Owner {user_email} is also a form filler for agreement {agreement.get('id')}")
+                    signers.append({
+                        "signer_email": user_email,
+                        "signer_full_name": "",  # Owner full name not in response
+                        "signer_role": "FORM_FILLER"
+                    })
+                else:
+                    # Normal case - extract signers from participantList
+                    for participant in participant_list:
+                        roles = participant.get("role", [])
+                        # Check if participant has SIGNER, APPROVER, or FORM_FILLER role
+                        if any(role in SIGNER_ROLES for role in roles):
+                            signers.append({
+                                "signer_email": participant.get("email", ""),
+                                "signer_full_name": participant.get("fullName", ""),
+                                "signer_role": roles[0] if roles else ""
+                            })
+
+                # Parse dates
+                created_date_str = agreement.get("createdDate", "")
+                modified_date_str = agreement.get("modifiedDate", "")
+
+                transformed = {
+                    "email": user_email,
+                    "adbe_sign_id": agreement.get("userId"),
+                    "group_id": agreement.get("groupId"),  # API groupId
+                    "signers": signers,
+                    "created_date": created_date_str,
+                    "modified_date": modified_date_str,
+                    "name": agreement.get("name", ""),
+                    "agreement_id": agreement.get("id"),
+                    "workflow_id": agreement.get("workflowId", ""),
+                    "status": agreement.get("status")
                 }
                 all_agreements.append(transformed)
 

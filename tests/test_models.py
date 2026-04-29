@@ -194,3 +194,44 @@ def parse_groups(group_data: List[dict]) -> List[Group]:
         counter +=1
     logger.debug(f"Parsed {counter} groups")
     return parsed_groups_list
+
+def parse_agreements(api_agreement_data: List[dict], group_pk_lookup: dict[str,int]) -> List[Agreement]:
+    """Parses raw API response into typed Agreement instances. Uses the group_pk_lookup dict to assign the correct group_id_ref value to Agreement instance"""
+    # TODO competethis parser code
+    agreement_list = []
+    for dict in api_agreement_data:
+        group_id = group_pk_lookup.get(dict.get("group_id"))
+        if group_id is None:
+            logger.warning(f"Skipping agreement {dict.get('id')} — unknown adobe_group_id")
+            continue
+        agreement_list.append(Agreement(
+            id=dict["id"],
+            name=dict["name"],
+            status=dict["status"],
+            group_id=group_id
+        ))
+    logger.debug(f"Parsed {len(agreement_list)} agreements")
+    return agreement_list
+
+def parse_agreement_signers(api_data: list[dict]) -> list[AgreementSigner]:
+    """
+    Extracts and flattens signer data from raw API agreements.
+    Skips agreements with no signers or malformed signer records.
+    """
+    # TODO review, complete and test this parser code
+    signers = []
+    for dict in api_data:
+        agreement_id = dict.get("id")
+        for s in dict.get("signers", []):
+            if not s.get("email"):
+                logger.warning(f"Skipping malformed signer in agreement {agreement_id}")
+                continue
+            signers.append(AgreementSigner(
+                agreement_id=agreement_id,
+                email=s["email"],
+                name=s.get("name", ""),
+                order=s.get("order", 0),
+                status=s.get("status", "unknown")
+            ))
+    logger.debug(f"Parsed {len(signers)} signers across {len(api_data)} agreements")
+    return signers
