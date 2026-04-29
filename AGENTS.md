@@ -57,6 +57,7 @@ All credentials come from environment variables via `dotenv_values(".env")`:
 - test_database.py only does DB ops (no API calls)
 - test_api.py only does HTTP (no business logic on empty results)
 - main.py handles all business condition checks (empty lists, etc.)
+- keep main() in main.py lean and readable
 
 ## Logging Rules
 
@@ -96,6 +97,7 @@ logging.basicConfig(
 ## What NOT to Modify
 - Files in `src/`
 - Files in `tests/old_modules/`
+- Files in `tests/bkup/`
 - Files in `tests/zscrappping_code/`
 - Credentials (hardcode in code - always use os.getenv() or dotenv_values)
 

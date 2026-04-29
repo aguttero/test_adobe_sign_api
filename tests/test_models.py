@@ -3,7 +3,6 @@ Data models for the Adobe Sign dashboard.
 SQLAlchemy declarative models - no IO, no side effects.
 """
 from typing import List, Optional
-from venv import logger
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy import ForeignKey, Date, column
@@ -77,7 +76,7 @@ class Agreement(Base):
     type: Mapped[str] # Normalizar
     status: Mapped[str]
     workflow_id: Mapped[Optional[str]] # Normalizar
-    #group_id: Mapped[str]
+    group_id: Mapped[str] # Normalize
     group_id_ref: Mapped[int] = mapped_column(ForeignKey("group.id"))
     created_date: Mapped[dt.date]
     modified_date: Mapped[dt.date]
