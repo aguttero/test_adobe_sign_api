@@ -70,9 +70,9 @@ class Agreement(Base):
     agreement_id: Mapped[str] = mapped_column(nullable=False, unique=True, index=True)
     # display_date: Mapped[dt.date]
     name: Mapped[str]
-    type: Mapped[str] # Normalizar
+    type: Mapped[str] # Normalize
     status: Mapped[str]
-    workflow_id: Mapped[Optional[str]] # Normalizar
+    workflow_id: Mapped[Optional[str]] # Normalize
     group_id: Mapped[str] # Normalize
     group_id_ref: Mapped[int] = mapped_column(ForeignKey("group.id"))
     created_date: Mapped[dt.date]
@@ -132,7 +132,6 @@ class DocFieldContent(Base):
     def __repr__(self) -> str:
         return f"DocFieldContent(pk_id={self.id!r}, fk_id={self.agreement_id!r})"
 
-
 def parse_agreements(api_agreement_data: List[dict], group_pk_lookup: dict[str,int]) -> List[Agreement]:
     """Parses raw API response into typed Agreement instances. Uses the group_pk_lookup dict to assign the correct group_id_ref value to Agreement instance"""
     agreement_list = []
@@ -159,7 +158,7 @@ def parse_agreements(api_agreement_data: List[dict], group_pk_lookup: dict[str,i
                     requester_area=field.get("defaultValue", ""), # Assuming defaultValue contains relevant info
                 ))
 
-        agreement_list.append(Agreement(
+        agreement_list.append(models.Agreement(
             agreement_id=item.get("id"),
             name=item.get("name"),
             type="AGREEMENT",
@@ -173,6 +172,7 @@ def parse_agreements(api_agreement_data: List[dict], group_pk_lookup: dict[str,i
         ))
     logger.debug(f"Parsed {len(agreement_list)} agreements")
     return agreement_list
+
 
 
 
@@ -218,22 +218,6 @@ def parse_agreements(api_agreement_data: List[dict], group_pk_lookup: dict[str,i
         ))
     logger.debug(f"Parsed {len(agreement_list)} agreements")
     return agreement_list
-
-
-
-class DocFieldContent(Base):
-    """Document field content mapped to doc_field_content table"""
-    __tablename__ = "doc_field_content"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    agreement_id: Mapped[int] = mapped_column(ForeignKey("agreement.id"))
-    agreement_subtype: Mapped [Optional[str]] # JAD CONTRATO OTRO
-    requester_area: Mapped [str] = mapped_column(index=True)
-
-    agreement: Mapped["Agreement"] = relationship(back_populates="doc_field_contents")
-    
-    def __repr__(self) -> str:
-        return f"DocFieldContent(pk_id={self.id!r}, fk_id={self.agreement_id!r})"
 
 
 class AgreementSigner(Base):

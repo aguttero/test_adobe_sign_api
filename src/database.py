@@ -600,6 +600,27 @@ def upsert_workflows(workflows: List[models.Workflow]) -> None:
     # It should use session.merge() or similar logic, possibly requiring a unique identifier for workflows.
     logger.warning("upsert_workflows() is not yet implemented.")
 
+# TODO: Implement functions for Workflow synchronization
+def fetch_workflows_from_db() -> List[models.Workflow]:
+    """Fetches all workflows from the database."""
+    # This function needs to query the Workflow table.
+    # It should return a list of models.Workflow objects.
+    logger.warning("fetch_workflows_from_db() is not yet implemented.")
+    return []
+
+def get_workflow_by_api_id(api_workflow_id: str) -> Optional[models.Workflow]:
+    """Gets a workflow from the database by its API ID."""
+    # This function needs to query the Workflow table using the api_workflow_id.
+    # It should return a models.Workflow object or None if not found.
+    logger.warning(f"get_workflow_by_api_id({api_workflow_id}) is not yet implemented.")
+    return None
+
+def upsert_workflows(workflows: List[models.Workflow]) -> None:
+    """Upserts a list of workflows into the database."""
+    # This function needs to handle both insertion of new workflows and updating existing ones.
+    # It should use session.merge() or similar logic, possibly requiring a unique identifier for workflows.
+    logger.warning("upsert_workflows() is not yet implemented.")
+
 # def get_workflow_by_api_id(api_workflow_id: str) -> Optional[models.Workflow]:
 #     """Gets a workflow from the database by its API ID."""
 #     pass
@@ -704,3 +725,25 @@ def get_all_agreements_for_export() -> List[Dict[str, Any]]:
     finally:
         if session:
             session.close()
+
+# TODO: Implement functions for Workflow synchronization
+def fetch_workflows_from_db() -> List[models.Workflow]:
+    """Fetches all workflows from the database."""
+    # This function needs to query the Workflow table.
+    # It should return a list of models.Workflow objects.
+    logger.warning("fetch_workflows_from_db() is not yet implemented.")
+    return []
+
+def get_workflow_by_api_id(api_workflow_id: str) -> Optional[models.Workflow]:
+    """Gets a workflow from the database by its API ID."""
+    # This function needs to query the Workflow table using the api_workflow_id.
+    # It should return a models.Workflow object or None if not found.
+    logger.warning(f"get_workflow_by_api_id({api_workflow_id}) is not yet implemented.")
+    return None
+
+def upsert_workflows(workflows: List[models.Workflow]) -> None:
+    """Upserts a list of workflows into the database."""
+    # This function needs to handle both insertion of new workflows and updating existing ones.
+    # It should use session.merge() or similar logic, possibly requiring a unique identifier for workflows.
+    logger.warning("upsert_workflows() is not yet implemented.")
+

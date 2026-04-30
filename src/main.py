@@ -1,17 +1,14 @@
 """
-Adobe Sign Dashboard Test Runner.
+Adobe Sign Dashboard Orchestration.
 
-Orchestrates database health checks, date range validation, and user list synchronization
-for the Adobe Sign API integration.
-
-This module handles:
-- Business logic (empty data checks, validation)
-- Exception handling (catches all custom exceptions)
-- Pipeline-level logging
+This module orchestrates the entire data pipeline for the Adobe Sign dashboard.
+It handles initialization, date range preparation, data synchronization (groups, users, agreements, workflows),
+and error handling. It ensures that pipeline steps are executed in the correct order
+and that exceptions are caught and logged appropriately.
 """
 import logging
 from datetime import date, datetime, timedelta
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 import models
 import api
@@ -32,16 +29,19 @@ DEFAULT_LAST_DATE_RANGE_END: str = "2020-01-11T00:00:00Z"
 #DEFAULT_LAST_DATE_RANGE_END: str = "2026-04-15T00:00:00Z"
 DAYS_TO_ADD_TO_RANGE: int = 2
 
+# Init Module-level logger
+logger = logging.getLogger(__name__)
 
 def _configure_logging() -> None:
     """Configure logging format once at startup."""
+    
     now = datetime.now()
     filestamp = now.strftime("%Y%m%d_%H_%M")
 
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.DEBUG)
 
-    file_handler = logging.FileHandler(f"logs/{filestamp}.log")
+    file_handler = logging.FileHandler(f"logs/{filestamp}_new.log")
     file_handler.setLevel(logging.DEBUG)
 
     logging.basicConfig(
@@ -49,6 +49,21 @@ def _configure_logging() -> None:
         format="%(asctime)s [%(levelname)s] %(module)s.%(funcName)s — %(message)s",
         handlers=[console_handler, file_handler]
     )
+    logger.debug("Finalized logging init and config")
+
+
+def initialize_app():
+    """Initialize application settings like logging and return core process variables."""
+    _configure_logging()
+
+    # Track execution timing and setup initial state
+    run_id: str = utils.generate_run_id()
+    start_time: datetime = utils.get_current_timestamp()
+    initial_agreement_count: int = 0
+    sync_history_id: int = 0
+    
+    logger.debug(f"run_id={run_id}, start_time={start_time}")
+    return run_id, start_time, initial_agreement_count, sync_history_id
 
 
 def compute_search_date_range(last_end_date_str: str) -> Tuple[str, str]:
@@ -63,10 +78,8 @@ def compute_search_date_range(last_end_date_str: str) -> Tuple[str, str]:
     start_date: datetime = datetime.fromisoformat(last_end_date_str)
     end_date: datetime = start_date + timedelta(days=DAYS_TO_ADD_TO_RANGE)
     end_date_str: str = f"{end_date.date()}T00:00:00Z"
-    # logging.getLogger(__name__).debug(f"Computed date range: {last_end_date_str} to {end_date_str}")
     logger.debug(f"Computed date range: {last_end_date_str} to {end_date_str}")
     return last_end_date_str, end_date_str
-
 
 def validate_range_in_past(range_end_date_str: str) -> bool:
     """Validate that the search range end date is in the past.
@@ -78,12 +91,12 @@ def validate_range_in_past(range_end_date_str: str) -> bool:
         True if range end is in the past, False otherwise.
     """
     today: datetime = datetime.today()
+    # Parse the date string, making it naive for comparison with today's date
     naive_end_date: datetime = datetime.fromisoformat(
         range_end_date_str.replace("T00:00:00Z", " 00:00:00")
     )
 
     if today >= naive_end_date:
-        # logging.getLogger(__name__).info(f"Search range validated - end date: {naive_end_date}")
         logger.info(f"Search range validated - end date: {naive_end_date}")
         return True
 
@@ -92,285 +105,119 @@ def validate_range_in_past(range_end_date_str: str) -> bool:
     )
     return False
 
-
-def test_run_user_sync_process(db_module) -> None:
-    """Test function to load test data into DB.
-
-    Args:
-        db_module: Database module with user list operations.
-    """
-    # TEST DATA: Load user list from file
-    user_list: List[dict] = db_module.test_convert_txt_to_list(TEST_USER_LIST_FILENAME)
-    # logging.getLogger(__name__).debug(f"Loaded {len(user_list)} users from file")
-    logger.debug(f"Loaded {len(user_list)} users from file")
-
-    # Transform dictionary keys to match table schema
-    transformed_user_list: List[dict] = db_module.test_transform_user_list_keys(user_list)
-    # logging.getLogger(__name__).info(f"Transformed {len(transformed_user_list)} user records")
-    logger.info(f"Transformed {len(transformed_user_list)} user records")
-
-    # Insert new users by email key
-    db_module.insert_new_items_by_email_key(transformed_user_list)
-    # logging.getLogger(__name__).debug("User sync process completed")
-    logger.debug("User sync process completed")
-
-
-def search_new_agreements(
-    user_email: str,
-    #user_adbe_sign_id: str,
-    date_range_start: str,
-    date_range_end: str
-) -> List[dict]:
-    """Search agreements for a given user within a date range and persist to DB.
+def prepare_date_range(last_sync_date_str: str) -> Tuple[str | None, str | None]:
+    """Computes and validates the date range for the current sync.
 
     Args:
-        user_email: Email address of the agreement owner.
-        user_adbe_sign_id: Adobe Sign user ID of the agreement owner.
-        date_range_start: Start date for search (ISO format).
-        date_range_end: End date for search (ISO format).
+        last_sync_date_str: The end date of the last successful sync, used as the start for the current range.
 
     Returns:
-        List of agreement dictionaries.
+        A tuple containing the start and end date strings for the current sync range.
+        Returns None for both if validation fails.
     """
-    # logger.debug(f"Searching agreements for {user_email} from {date_range_start} to {date_range_end}")
+    # Compute the date range for the current sync
+    new_start_date_str, new_end_date_str = compute_search_date_range(last_sync_date_str)
 
-    # Search agreements via API
-    agreement_list: List[dict] = api.search_agreements(
-        user_email=user_email,
-        # user_adbe_sign_id=user_adbe_sign_id,
-        date_range_start=date_range_start,
-        date_range_end=date_range_end
-    )
-    # logger.debug(f"Found {len(agreement_list)} agreements for {user_email}")
+    # Validate that the computed date range is in the past
+    if not validate_range_in_past(new_end_date_str):
+        # Error is already logged within validate_range_in_past
+        return None, None
 
-    # Get user from DB to associate agreements
-    user = db.get_user_by_email(user_email)
-    if user is None:
-        logger.error(f"User {user_email} not found in database")
-        return []
+    logger.info(f"Date range prepared: {new_start_date_str} to {new_end_date_str}")
+    return new_start_date_str, new_end_date_str
 
-    # Persist agreements to DB
-    agreements_inserted = db.insert_agreements(agreement_list, user.id)
-    # logger.debug(f"Inserted {agreements_inserted} agreements for {user_email}")
-
-    return agreement_list
-
-
-def search_agreements_for_users(
-    user_list: List[dict],
-    date_range_start: str,
-    date_range_end: str
-) -> Tuple[int, int, int]:
-    """Search agreements for multiple users and persist to DB.
-
-    Args:
-        user_list: List of user dictionaries with 'email' and 'adbe_sign_id'.
-        date_range_start: Start date for search (ISO format).
-        date_range_end: End date for search (ISO format).
-
-    Returns:
-        Tuple of (total_users_searched, users_with_zero_agreements, users_with_agreements).
-    """
-    total_users: int = len(user_list)
-    users_with_zero: int = 0
-    users_with_agreements: int = 0
-    total_agreements: int = 0
-
-    logger.info(f"Searching agreements for {total_users} users")
-
-    for user in user_list:
-        user_email = user.get("email", "")
-        # user_adbe_sign_id = user.get("adbe_sign_id", "")
-
-        #if not user_email or not user_adbe_sign_id:
-        if not user_email:
-            logger.warning(f"Skipping user with missing email or adbe_sign_id")
-            continue
-
-        try:
-            agreements = search_new_agreements(
-                user_email=user_email,
-                # user_adbe_sign_id=user_adbe_sign_id,
-                date_range_start=date_range_start,
-                date_range_end=date_range_end
-            )
-
-            if len(agreements) == 0:
-                users_with_zero += 1
-            else:
-                users_with_agreements += 1
-                total_agreements += len(agreements)
-
-        except APIError as e:
-            # Check if this is an INVALID_USER error
-            if "Invalid user" in str(e):
-                logger.warning(f"User {user_email} is invalid - marking as INVALID_USER")
-                db.update_user_status_by_email(user_email, "INVALID_USER")
-            else:
-                logger.error(f"API error searching agreements for {user_email}: {e}")
-            continue
-        except Exception as e:
-            logger.error(f"Error searching agreements for {user_email}: {e}")
-            continue
-
-    # Log summary statistics
-    logger.info(f"Total users searched: {total_users}")
-    logger.info(f"Users with zero agreements: {users_with_zero}")
-    logger.info(f"Users with agreements: {users_with_agreements}")
-    logger.info(f"Total agreements found: {total_agreements}")
-
-    return total_users, users_with_zero, users_with_agreements
-
-def sync_agreements_v2(user_email: str, date_range_start: str, date_range_end: str):
+def sync_groups() -> int:
+    """Fetches, parses, and upserts group data into the database. Returns 0 on success, 1 on failure."""
     try:
-        # single API call — raw contains both agreement and signer data
-        api_raw      = api.search_agreements(user_email, date_range_start, date_range_end)
-        group_lookup = db.get_group_pk()
+        api_groups_list: list[dict] = api.fetch_all_groups()
+        ## TODO validate all_grp_list len > 0
+        logger.debug(f"Group list len: {len(api_groups_list)} TODO: NEED TO VALIDATE THIS IS > 0")
 
-        # parse both from the same api_raw payload
-        agreements   = models.parse_agreements(api_raw, group_lookup)
-        signers      = models.parse_agreement_signers(api_raw)
+        parsed_groups = models.parse_groups(api_groups_list)
+        db.upsert_groups(parsed_groups)
+        logger.info("Group synchronization completed successfully.")
+        return 0 # Success code
 
-        if not agreements:
-            log.warning("No valid agreements to upsert — skipping")
-            return
+    except Exception as e:
+        logger.error(f"Failed to sync groups: {e}")
+        return 1 # Failure code
 
-        # agreements must be persisted before signers — FK constraint
-        db.upsert_agreements(agreements)
-        db.upsert_agreement_signers(signers)
+def sync_users() -> int:
+    """Fetches, transforms, and inserts new user data. Returns 0 on success, 1 on failure."""
+    try:
+        # Fetch users from Adobe Sign API
+        api_user_list: List[dict] = api.fetch_all_users()
 
-        log.info("Agreement and signer sync completed successfully")
+        # Business condition: handle empty user list
+        if not api_user_list:
+            logger.warning("No users fetched from API - skipping user sync.")
+            return 0 # No users found, but not a failure of the sync process itself
 
-    except AuthError as e:
-        logger.error(f"Authentication failed: {e}")
+        # Transform API response keys to DB schema
+        transformed_user_list: List[dict] = db.transform_user_list_keys(api_user_list)
+        logger.debug(f"Transformed {len(transformed_user_list)} user records")
+
+        # Insert only new users (not in existing email list)
+        db.insert_new_items_by_email_key(transformed_user_list)
+        logger.info("User synchronization completed successfully.")
+        return 0 # Success code
+
     except APIError as e:
-        logger.error(f"API error fetching agreements: {e}")
-    except DatabaseError as e:
-        logger.error(f"DB error during agreement sync: {e}")    
+        logger.error(f"API error during user sync: {e}")
+        # Specific handling for invalid user could be added here if needed
+        return 1 # Failure code
+    except Exception as e:
+        logger.error(f"An unexpected error occurred during user sync: {e}")
+        return 1 # Failure code
 
+def sync_agreements() -> int:
+    """Searches for and persists new agreements for all users in the database.
 
-def sync_agreements_for_all_users(date_range_start: str, date_range_end: str) -> Tuple[int, int, int]:
-    """Search and persist new agreements for all users in the database.
-
-    Executes after user sync is complete. Fetches all users from DB and searches
-    agreements for each user within the given date range.
-
-    Args:
-        date_range_start: Start date for agreement search (ISO format).
-        date_range_end: End date for agreement search (ISO format).
+    This function is called after user synchronization is complete.
+    It iterates through users, searches for agreements within the prepared date range,
+    and persists the found agreements and their signers to the database.
 
     Returns:
-        Tuple of (total_users, users_with_zero_agreements, users_with_agreements).
+        0 for success, 1 for failure.
     """
     logger.info("Starting agreement sync for all users in database")
 
     # Get all users from database (exclude INVALID_USER status)
     all_users: List[dict] = db.get_all_users(exclude_status="INVALID_USER")
 
-    logger.info(f"Found {len(all_users)} users in database to search agreements for")
-
     if not all_users:
         logger.warning("No users found in database - skipping agreement sync")
-        return 0, 0, 0
+        return 0 # No users to sync agreements for, not a failure
+
+    logger.info(f"Found {len(all_users)} users in database to search agreements for")
 
     # Search agreements for each user
-    result = search_agreements_for_users(all_users, date_range_start, date_range_end)
-    total_searched, users_with_zero, users_with_agr = result
-
-    logger.info(f"Agreement sync completed: {total_searched} users searched, "
+    total_users, users_with_zero, users_with_agr = sync_agreements_for_users(all_users, date_range_start, date_range_end)
+    logger.info(f"Agreement sync finished: {total_users} users searched, "
               f"{users_with_zero} with zero agreements, {users_with_agr} with agreements")
-
-    return total_searched, users_with_zero, users_with_agr
-
-
-def _handle_failure(
-    sync_history_id: int,
-    initial_agreement_count: int,
-    start_time: datetime,
-    run_id: str
-) -> None:
-    """Handle failure case: rollback agreements and update SyncHistory.
     
-    Args:
-        sync_history_id: ID of the SyncHistory record.
-        initial_agreement_count: Agreement count before this run.
-        start_time: Execution start time.
-        run_id: Unique run identifier.
-    """
-    logger.info("Handling failure - rolling back agreements")
-    
-    # Calculate elapsed time
-    end_time: datetime = utils.get_current_timestamp()
-    hours, minutes, seconds = utils.calculate_elapsed_time(start_time, end_time)
-    elapsed_str: str = utils.format_elapsed_time(hours, minutes, seconds)
-    end_time_str: str = end_time.strftime('%Y-%m-%d %H:%M:%S')
-    
-    # Rollback agreements
-    try:
-        deleted_count = db.rollback_agreements(initial_agreement_count)
-        logger.info(f"Rolled back {deleted_count} agreements")
-    except Exception as e:
-        logger.error(f"Failed to rollback agreements: {e}")
-    
-    # Get log counts
-    try:
-        log_file_path = "logs/test_log.log"
-        log_lines = monitor.read_recent_log_lines(log_file_path)
-        log_counts = monitor.count_log_records_by_level(log_lines)
-    except Exception:
-        log_counts = {"ERROR": 0, "WARNING": 0, "CRITICAL": 0}
-    
-    # Update SyncHistory with failure
-    try:
-        db.update_sync_history(
-            sync_id=sync_history_id,
-            agreements_found=0,
-            sync_ok=False,
-            elapsed_time=elapsed_str,
-            end_time=end_time_str,
-            error_qty=log_counts["ERROR"],
-            warning_qty=log_counts["WARNING"],
-            critical_qty=log_counts["CRITICAL"]
-        )
-    except Exception as e:
-        logger.warning(f"Failed to update sync history on failure: {e}")
-    
-    logger.info(f"Elapsed time before failure: {elapsed_str}")
-    logger.info(f"Run ID: {run_id} - FAILED")
-
+    return 0 # Success code
 
 def main() -> int:
-    """Main entry point for the application.
+    """Main entry point for the application orchestrates the sync process."""
+    
+    # Init Logger config and run and time stamps
+    run_id, start_time, initial_agreement_count, sync_history_id = initialize_app()
 
-    Returns:
-        Exit code (0 for success, 1 for errors).
-    """
-    global logger
-    logger = logging.getLogger(__name__)
-    _configure_logging()
+    # Prepare the date range for the sync process
+    date_range_start, date_range_end = prepare_date_range(DEFAULT_LAST_DATE_RANGE_END)
     
-    # Track execution timing
-    run_id: str = utils.generate_run_id()
-    start_time: datetime = utils.get_current_timestamp()
-    initial_agreement_count: int = 0
-    sync_history_id: int = 0
-    
+    if date_range_start is None or date_range_end is None:
+        # Date range preparation failed, error already logged in prepare_date_range
+        return 1
+
     try:
-        # Compute date range
-        last_end_date_str: str = DEFAULT_LAST_DATE_RANGE_END
-        _, new_end_date_str = compute_search_date_range(last_end_date_str)
-        
-        # Validate date range is in the past
-        if not validate_range_in_past(new_end_date_str):
-            logger.critical("Date range validation failed - exiting")
-            return 1
-        
-        # Insert SyncHistory record at start
+        # Insert SyncHistory record at the start of the run
         try:
             sync_history_id = db.insert_sync_history(
                 run_id=run_id,
-                range_start=last_end_date_str,
-                range_end=new_end_date_str
+                range_start=date_range_start,
+                range_end=date_range_end
             )
             logger.info(f"Starting main execution - Run ID: {run_id}")
             logger.info(f"Start time: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
@@ -386,54 +233,17 @@ def main() -> int:
             logger.warning(f"Could not get initial agreement count: {e}")
 
     
-        # === SYNC GROUPS FIRST (needed for agreements FK) ===
-        try:
-            api_groups_list: list[dict] = api.fetch_all_groups()
-            ## TODO validate all_grp_list len > 0
-            logger.debug (f"Group list len: {len(api_groups_list)} TODO: NEED TO VALIDATE THIS IS > 0")
+        # === EXECUTE PIPELINE STEPS ===
+        group_sync_status = sync_groups()
+        user_sync_status = sync_users()
+        agreement_sync_status = sync_agreements()
 
-            parsed_groups = models.parse_groups(api_groups_list)
-            db.upsert_groups(parsed_groups)
+        # Determine overall success status based on individual step statuses
+        overall_sync_ok = (group_sync_status == 0 and 
+                           user_sync_status == 0 and 
+                           agreement_sync_status == 0)
 
-        except Exception as e:
-            logger.error(f"Failed to sync groups: {e}")
-            return 1
-
-        ## TODO UPDATE GROUP FK RESOLUTION
-
-        ## TODO SYNC WORKFLOWS
-
-        ## TODO UPDATE WORKFLOW FK RESOLUTION
-
-
-        # Fetch users from Adobe Sign API
-        api_user_list: List[dict] = api.fetch_all_users()
-
-      
-
-        # Business condition: handle empty user list
-        if not api_user_list:
-            logger.warning("No users fetched from API - pipeline aborted")
-            return 1
-
-        # Transform API response keys to DB schema
-        transformed_user_list: List[dict] = db.transform_user_list_keys(api_user_list)
-        logger.debug(f"Transformed {len(transformed_user_list)} user records")
-
-        # Insert only new users (not in existing email list)
-        db.insert_new_items_by_email_key(transformed_user_list)
-
-
-        # === SEARCH AND PERSIST AGREEMENTS FOR ALL USERS ===
-        # This executes after the user fetch/insert task is completed
-        # Use the computed date range for agreement search
-        _, agreement_end_str = compute_search_date_range(last_end_date_str)
-        total_users, users_with_zero, users_with_agr = sync_agreements_for_all_users(
-            date_range_start=last_end_date_str,
-            date_range_end=agreement_end_str
-        )
-        logger.info(f"Agreement sync finished: {total_users} users, {users_with_zero} zero, {users_with_agr} with agreements")
-
+        # === FINALIZE === 
         # Calculate elapsed time
         end_time: datetime = utils.get_current_timestamp()
         hours, minutes, seconds = utils.calculate_elapsed_time(start_time, end_time)
@@ -444,7 +254,7 @@ def main() -> int:
         final_agreement_count = db.get_agreement_count()
         agreements_found = final_agreement_count - initial_agreement_count
         
-        # Update SyncHistory with success
+        # Update SyncHistory with overall success status
         log_file_path = "logs/test_log.log"
         log_lines = monitor.read_recent_log_lines(log_file_path)
         log_counts = monitor.count_log_records_by_level(log_lines)
@@ -453,23 +263,23 @@ def main() -> int:
             db.update_sync_history(
                 sync_id=sync_history_id,
                 agreements_found=agreements_found,
-                sync_ok=True,
+                sync_ok=overall_sync_ok, # Reflect the actual success status of all sync steps
                 elapsed_time=elapsed_str,
                 end_time=end_time_str,
-                error_qty=log_counts["ERROR"],
-                warning_qty=log_counts["WARNING"],
-                critical_qty=log_counts["CRITICAL"]
+                error_qty=log_counts.get("ERROR", 0),
+                warning_qty=log_counts.get("WARNING", 0),
+                critical_qty=log_counts.get("CRITICAL", 0)
             )
         except Exception as e:
             logger.warning(f"Failed to update sync history: {e}")
         
-        logger.info(f"Main execution completed successfully")
+        logger.info(f"Main execution completed. Overall status: {'Success' if overall_sync_ok else 'Failed'}")
         logger.info(f"End time: {end_time_str}")
         logger.info(f"Elapsed time: {elapsed_str}")
         logger.info(f"Agreements found: {agreements_found}")
-        logger.info(f"Run ID: {run_id} - COMPLETED")
+        logger.info(f"Run ID: {run_id} - {'COMPLETED' if overall_sync_ok else 'FAILED'}")
         
-        return 0
+        return 0 if overall_sync_ok else 1
 
     except AuthError as e:
         logger.error(f"Authentication failed: {e}")
@@ -492,23 +302,21 @@ def main() -> int:
         _handle_failure(sync_history_id, initial_agreement_count, start_time, run_id)
         return 1
 
-# Removed test_dev_main as it's not relevant for the main application flow
+def dev_main () -> int:
+    # Init Logger config and run and time stamps
+    run_id, start_time, initial_agreement_count, sync_history_id = initialize_app()
+    logger.info(f"DEV_MAIN START")
 
-def init_app():
-    pass
+    # Prepare the date range for the sync process
+    date_range_start, date_range_end = prepare_date_range(DEFAULT_LAST_DATE_RANGE_END)
+    logger.debug (f"date_range_start={date_range_start}, date_range_end={date_range_end}")
 
-def dev_main ():
-    global logger
-    logger = logging.getLogger(__name__)
-    _configure_logging()
 
-    init_app()
-
+    logger.debug(f"DEV_MAIN END")
     return 0
-
-
 
 if __name__ == "__main__":
     exit_code: int = dev_main()
-    logging.info(f"Exit code: {exit_code}")
+    logging.info(f"Logging Exit code: {exit_code}")
+    print (f"exit code: {exit_code}")
     exit(exit_code)
