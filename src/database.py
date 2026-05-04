@@ -366,7 +366,7 @@ def insert_sync_history(
     run_id: str,
     range_start: str,
     range_end: str
-) -> int:
+) -> str:
     """Insert a new SyncHistory record at the start of execution.
 
     Args:
@@ -398,8 +398,8 @@ def insert_sync_history(
             )
             session.add(sync_record)
             session.commit()
-            logger.debug(f"Inserted SyncHistory record with ID: {sync_record.id}")
-            return sync_record.id
+            logger.debug(f"Inserted SyncHistory record with ID: {sync_record.run_id}, pk_id: {sync_record.id}")
+            return sync_record.run_id
         except SQLAlchemyError as e:
             session.rollback()
             logger.error(f"Failed to insert SyncHistory: {e}")

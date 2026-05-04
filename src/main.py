@@ -309,7 +309,20 @@ def dev_main () -> int:
 
     # Prepare the date range for the sync process
     date_range_start, date_range_end = prepare_date_range(DEFAULT_LAST_DATE_RANGE_END)
-    logger.debug (f"date_range_start={date_range_start}, date_range_end={date_range_end}")
+    # OK logger.debug (f"date_range_start={date_range_start}, date_range_end={date_range_end}")
+    
+    # This if is here to save the type error in Insert SyncHistory step
+    if date_range_start is None or date_range_end is None:
+        # Date range preparation failed, error already logged in prepare_date_range
+        return 1
+
+    # Insert SyncHistory record at the start of the run
+    sync_history_id = db.insert_sync_history(
+                run_id=run_id,
+                range_start=date_range_start,
+                range_end=date_range_end
+            )
+    logger.info(f"Starting main execution - Run ID: {run_id} - Start time: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
 
 
     logger.debug(f"DEV_MAIN END")

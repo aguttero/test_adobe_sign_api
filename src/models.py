@@ -62,6 +62,29 @@ class Group(Base):
     def __repr__(self) -> str:
         return f"Group(name={self.name!r}, pk_id={self.id!r}, group_id={self.group_id}, created_date={self.created_date!r}, last_sync={self.last_sync!r}, admin_email={self.admin_email!r}, is_default_grp={self.is_default_grp!r})"
 
+class Workflow(Base):
+    """Workflow model mapped to workflow table"""
+    __tablename__ = "workflow"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    workflow_id: Mapped[str] = mapped_column(unique=True, index=True)
+    workflow_name: Mapped[str]
+    last_sync: Mapped[dt.date] = mapped_column(
+        Date,
+        default=dt.datetime.today,
+        onupdate=dt.datetime.today,
+        nullable=False
+    )
+
+    agreements: Mapped[List["Agreement"]] = relationship(back_populates="workflow")
+
+    def __repr__(self) -> str:
+        return f"Workflow(name={self.workflow_name!r}, workflow_id={self.workflow_id!r})"
+
+# TODO: Implement parsing for Workflow data if needed
+# def parse_workflows(workflow_data: List[dict]) -> List[Workflow]:
+#     pass
+
 class Agreement(Base):
     """Agreement model mapped to agreement table. All agreements belong to a Group."""
     __tablename__ = "agreement"
@@ -73,8 +96,9 @@ class Agreement(Base):
     type: Mapped[str] # Normalize
     status: Mapped[str]
     workflow_id: Mapped[Optional[str]] # Normalize
-    group_id: Mapped[str] # Normalize
+    # group_id: Mapped[str] # Normalize
     group_id_ref: Mapped[int] = mapped_column(ForeignKey("group.id"))
+    workflow_id_ref: Mapped[Optional[int]] = mapped_column(ForeignKey("workflow.id"))
     created_date: Mapped[dt.date]
     modified_date: Mapped[dt.date]
     
@@ -84,6 +108,7 @@ class Agreement(Base):
     user: Mapped[User] = relationship(back_populates="agreements")
 
     group: Mapped[Group] = relationship(back_populates="agreements")
+    workflow: Mapped[Optional[Workflow]] = relationship(back_populates="agreements")
     
     # Document field content relationship
     doc_field_contents: Mapped[List["DocFieldContent"]] = relationship (
@@ -96,26 +121,6 @@ class Agreement(Base):
     def __repr__(self) -> str:
         return f"Agreement(name={self.name!r}, status={self.status!r}, created_date={self.created_date!r}, id={self.id!r})"
 
-
-class Workflow(Base):
-    """Workflow model mapped to workflow table"""
-    __tablename__ = "workflow"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    workflow_id: Mapped[str] = mapped_column(unique=True, index=True)
-    workflow_name: Mapped[str]
-
-    # Define relationship if Agreement model has a FK to Workflow.
-    # Assuming for now that Agreement.workflow_id refers to Workflow.workflow_id
-    # If it refers to Workflow.id, the relationship definition would need adjustment.
-    agreements: Mapped[List["Agreement"]] = relationship(back_populates="workflow")
-
-    def __repr__(self) -> str:
-        return f"Workflow(name={self.workflow_name!r}, workflow_id={self.workflow_id!r})"
-
-# TODO: Implement parsing for Workflow data if needed
-# def parse_workflows(workflow_data: List[dict]) -> List[Workflow]:
-#     pass
 
 
 class DocFieldContent(Base):
