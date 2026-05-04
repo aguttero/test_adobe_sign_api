@@ -229,8 +229,12 @@ def main() -> int:
         try:
             initial_agreement_count = db.get_agreement_count()
             logger.debug(f"Initial agreement count: {initial_agreement_count}")
-        except Exception as e:
-            logger.warning(f"Could not get initial agreement count: {e}")
+        except DatabaseError as e:
+            logger.error(f"Initial agreement count failed: {e}. Caused by: {e.original_exc}")
+            # Define Business decision to do next
+            # fall back procedure
+            return 1
+
 
     
         # === EXECUTE PIPELINE STEPS ===
@@ -317,12 +321,39 @@ def dev_main () -> int:
         return 1
 
     # Insert SyncHistory record at the start of the run
-    sync_history_id = db.insert_sync_history(
-                run_id=run_id,
-                range_start=date_range_start,
-                range_end=date_range_end
-            )
-    logger.info(f"Starting main execution - Run ID: {run_id} - Start time: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+    try:
+        sync_history_id = db.insert_sync_history(
+                    run_id=run_id,
+                    range_start=date_range_start,
+                    range_end=date_range_end
+                )
+        logger.info(f"Starting main execution - Run ID: {run_id} - Start time: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+    except DatabaseError as e:
+        logger.critical(f"Failed to create sync history record: {e} Caused by: {e.original_exc} - exiting")
+        # Define Business decision to do next
+        # fall back procedure
+        return 1   
+
+    # Get initial agreement count for rollback tracking
+    try:
+        initial_agreement_count = db.get_agreement_count()
+        logger.info(f"Rollback safety net. Initial agreement count: {initial_agreement_count}")
+    except DatabaseError as e:
+        logger.critical(f"Could not get initial agreement count: {e}. Caused by: {e.original_exc} - exiting")
+        # Define Business decision to do next
+        # fall back procedure
+        return 1
+
+    # EXECUTE PIPELINE STEPS
+    # try:
+    #     group_sync_status = sync_groups()
+    # except DatabaseError as e:
+    #     logger.critical(f"Could not sync groups: {e}. Caused by: {e.original_exc} - exiting")
+    #     # Define Business decision to do next
+    #     # fall back procedure
+    #     return 1
+
+
 
 
     logger.debug(f"DEV_MAIN END")

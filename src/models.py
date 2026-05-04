@@ -95,7 +95,7 @@ class Agreement(Base):
     name: Mapped[str]
     type: Mapped[str] # Normalize
     status: Mapped[str]
-    workflow_id: Mapped[Optional[str]] # Normalize
+    # workflow_id: Mapped[Optional[str]] # Normalize
     # group_id: Mapped[str] # Normalize
     group_id_ref: Mapped[int] = mapped_column(ForeignKey("group.id"))
     workflow_id_ref: Mapped[Optional[int]] = mapped_column(ForeignKey("workflow.id"))

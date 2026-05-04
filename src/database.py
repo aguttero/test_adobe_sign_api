@@ -459,12 +459,12 @@ def get_agreement_count() -> int:
     Returns:
         Total number of agreements.
     """
-    with _get_session() as session:
-        try:
+    try:
+        with _get_session() as session:
             count = session.query(models.Agreement).count()
             logger.debug(f"Current agreement count: {count}")
             return count
-        except SQLAlchemyError as e:
+    except SQLAlchemyError as e:
             logger.error(f"Failed to get agreement count: {e}")
             raise DatabaseError(f"Failed to get agreement count: {e}", original_exc=e)
 
