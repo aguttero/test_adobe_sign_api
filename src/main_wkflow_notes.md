@@ -17,7 +17,7 @@
 * sync_groups()
     * api.fetch_all_groups()
     * get_token_manager().get_token()
-
+BUG 
 2026-05-05 08:40:56,725 [DEBUG] main.sync_groups — Group list len: 12
 2026-05-05 08:40:56,725 [ERROR] main.sync_groups — Failed to sync groups: name 'convert_to_sqlite_date' is not defined
 
@@ -30,3 +30,7 @@ TODO Refator _get_token_manager que está en API . y refresh TOKEN que llama a A
 
 ## Sync Agreements
 * sync_agreements()
+
+TODO Context Caching
+TODO Two-tier routing
+TODO Batch processing -> Documentation 50% discount

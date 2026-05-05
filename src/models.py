@@ -1,4 +1,4 @@
-from datetime import date
+#from datetime import date
 from typing import List, Optional
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.orm import DeclarativeBase
@@ -120,8 +120,6 @@ class Agreement(Base):
 
     def __repr__(self) -> str:
         return f"Agreement(name={self.name!r}, status={self.status!r}, created_date={self.created_date!r}, id={self.id!r})"
-
-
 
 class DocFieldContent(Base):
     """Document field content mapped to doc_field_content table"""
@@ -267,14 +265,27 @@ class SyncHistory(Base):
     critical_qty: Mapped[int]
     annotations: Mapped[Optional[str]]
 
+def convert_to_sqlite_date(date_iso: str) -> dt.date:
+    """Convert ISO date string to SQLite date format.
+    
+    Args:
+        date_iso: ISO format date string (e.g., "2026-03-02T08:23:52-08:00")
+        
+    Returns:
+        Date object.
+    """
+    dt_obj = dt.datetime.fromisoformat(date_iso)
+    date_sqlite = dt_obj.date()
+    return date_sqlite
 
 def parse_groups(group_data: List[dict]) -> List[Group]:
     """Converts raw API dicts into typed Group instances."""
+    
     parsed_groups_list =[]
     counter = 0
     for list_item in group_data:
         # Parse createdDate from ISO format
-        created_date_str: str = list_item.get("createdDate", "")
+        created_date_str: str = list_item.get("createdDate")
         created_date = convert_to_sqlite_date(created_date_str)
         today = dt.date.today() 
 
@@ -286,6 +297,7 @@ def parse_groups(group_data: List[dict]) -> List[Group]:
                     is_default_grp=list_item.get("isDefaultGroup")
                 )
         parsed_groups_list.append(new_group)
+        # logger.debug(f"parsed_new_group={new_group}")
         counter +=1
     logger.debug(f"Parsed {counter} groups")
     return parsed_groups_list

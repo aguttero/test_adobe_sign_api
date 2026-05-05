@@ -534,7 +534,7 @@ def upsert_groups(all_groups_list: list[models.Group])-> None:
     """
    
     summary = {"inserted": 0, "updated": 0, "skipped": 0, "errors": []}
-
+    logger.debug(f"all_grp_list={all_groups_list}")
     try:
         with _get_session() as session:
             
@@ -543,29 +543,30 @@ def upsert_groups(all_groups_list: list[models.Group])-> None:
                 group_id: pk
                 for pk, group_id in session.query(models.Group.id, models.Group.group_id).all()
             }
-
+            logger.debug(f"existing_dict={existing}")
             for group_record in all_groups_list:
-                internal_pk = existing.get(group_record.group_id)      # None → INSERT, int → UPDATE
+                internal_pk = existing.get(group_record.group_id)
+                logger.debug(f"internal_pk={internal_pk}")      # None → INSERT, int → UPDATE
 
                 is_new_record = internal_pk is None
 
                 group_record.id = internal_pk           # None lets DB assign PK on insert
 
-                session.merge(group_record)             # INSERT or UPDATE based on PK
+                session.merge(group_record)
+                logger.debug(f"merge group_record={group_record}")             # INSERT or UPDATE based on PK
+                logger.debug(f"Upserted group: {group_record.group_id}")
 
                 if is_new_record:
                     existing[group_record.group_id] = ...            # guard intra-batch duplicates - updates table again if second api hit is received for same group_id
                     summary["inserted"] += 1
                 else:
                     summary["updated"] += 1
-    
-        logger.debug(f"Upserted group: {group_record.group_id}")
+            session.commit()
     except SQLAlchemyError as e:
         session.rollback()
         logger.error(f"Failed to upsert group: {group_record} Error: {e}")
         summary["skipped"] += 1
         raise DatabaseError(f"Failed to upsert group: {e}", original_exc=e)
-    session.commit()
     logger.debug(f"{summary}")
 
 def get_group_pk()-> dict:
@@ -578,27 +579,6 @@ def get_group_pk()-> dict:
 
     logger.debug(f"Generated group_id lookup with {len(existing)} records")
     return existing
-
-# TODO: Implement functions for Workflow synchronization
-def fetch_workflows_from_db() -> List[models.Workflow]:
-    """Fetches all workflows from the database."""
-    # This function needs to query the Workflow table.
-    # It should return a list of models.Workflow objects.
-    logger.warning("fetch_workflows_from_db() is not yet implemented.")
-    return []
-
-def get_workflow_by_api_id(api_workflow_id: str) -> Optional[models.Workflow]:
-    """Gets a workflow from the database by its API ID."""
-    # This function needs to query the Workflow table using the api_workflow_id.
-    # It should return a models.Workflow object or None if not found.
-    logger.warning(f"get_workflow_by_api_id({api_workflow_id}) is not yet implemented.")
-    return None
-
-def upsert_workflows(workflows: List[models.Workflow]) -> None:
-    """Upserts a list of workflows into the database."""
-    # This function needs to handle both insertion of new workflows and updating existing ones.
-    # It should use session.merge() or similar logic, possibly requiring a unique identifier for workflows.
-    logger.warning("upsert_workflows() is not yet implemented.")
 
 # TODO: Implement functions for Workflow synchronization
 def fetch_workflows_from_db() -> List[models.Workflow]:
@@ -725,25 +705,4 @@ def get_all_agreements_for_export() -> List[Dict[str, Any]]:
     finally:
         if session:
             session.close()
-
-# TODO: Implement functions for Workflow synchronization
-def fetch_workflows_from_db() -> List[models.Workflow]:
-    """Fetches all workflows from the database."""
-    # This function needs to query the Workflow table.
-    # It should return a list of models.Workflow objects.
-    logger.warning("fetch_workflows_from_db() is not yet implemented.")
-    return []
-
-def get_workflow_by_api_id(api_workflow_id: str) -> Optional[models.Workflow]:
-    """Gets a workflow from the database by its API ID."""
-    # This function needs to query the Workflow table using the api_workflow_id.
-    # It should return a models.Workflow object or None if not found.
-    logger.warning(f"get_workflow_by_api_id({api_workflow_id}) is not yet implemented.")
-    return None
-
-def upsert_workflows(workflows: List[models.Workflow]) -> None:
-    """Upserts a list of workflows into the database."""
-    # This function needs to handle both insertion of new workflows and updating existing ones.
-    # It should use session.merge() or similar logic, possibly requiring a unique identifier for workflows.
-    logger.warning("upsert_workflows() is not yet implemented.")
 

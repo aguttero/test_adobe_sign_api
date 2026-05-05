@@ -143,7 +143,7 @@ def sync_groups() -> Optional[int]:
 
     except Exception as e:
         logger.error(f"Failed to sync groups: {e}")
-        raise AppError (f"Failed to sync groups: {e}")
+        raise AppError (f"APP ERROR: Failed to sync groups: {e}")
 
 
 def sync_users() -> int:
