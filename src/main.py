@@ -126,21 +126,25 @@ def prepare_date_range(last_sync_date_str: str) -> Tuple[str | None, str | None]
     logger.info(f"Date range prepared: {new_start_date_str} to {new_end_date_str}")
     return new_start_date_str, new_end_date_str
 
-def sync_groups() -> int:
+def sync_groups() -> Optional[int]:
     """Fetches, parses, and upserts group data into the database. Returns 0 on success, 1 on failure."""
     try:
         api_groups_list: list[dict] = api.fetch_all_groups()
-        ## TODO validate all_grp_list len > 0
-        logger.debug(f"Group list len: {len(api_groups_list)} TODO: NEED TO VALIDATE THIS IS > 0")
+        logger.debug(f"Group list len: {len(api_groups_list)}")
+
+        if len(api_groups_list) == 0:
+            logger.warning(f"Synced {len(api_groups_list)} groups")
+            return None
 
         parsed_groups = models.parse_groups(api_groups_list)
         db.upsert_groups(parsed_groups)
         logger.info("Group synchronization completed successfully.")
-        return 0 # Success code
+        return len(api_groups_list)
 
     except Exception as e:
         logger.error(f"Failed to sync groups: {e}")
-        return 1 # Failure code
+        raise AppError (f"Failed to sync groups: {e}")
+
 
 def sync_users() -> int:
     """Fetches, transforms, and inserts new user data. Returns 0 on success, 1 on failure."""
@@ -337,7 +341,7 @@ def dev_main () -> int:
     # Get initial agreement count for rollback tracking
     try:
         initial_agreement_count = db.get_agreement_count()
-        logger.info(f"Rollback safety net. Initial agreement count: {initial_agreement_count}")
+        logger.info(f"Rollback safety net init: Initial agreement count: {initial_agreement_count}")
     except DatabaseError as e:
         logger.critical(f"Could not get initial agreement count: {e}. Caused by: {e.original_exc} - exiting")
         # Define Business decision to do next
@@ -345,15 +349,25 @@ def dev_main () -> int:
         return 1
 
     # EXECUTE PIPELINE STEPS
-    # try:
-    #     group_sync_status = sync_groups()
-    # except DatabaseError as e:
-    #     logger.critical(f"Could not sync groups: {e}. Caused by: {e.original_exc} - exiting")
-    #     # Define Business decision to do next
-    #     # fall back procedure
-    #     return 1
+    try:
+        result_groups_sync = sync_groups()
+        
+        if not result_groups_sync:
+            logger.warning(f"Synced {result_groups_sync} groups. - exiting")
+            return 1
 
-
+        # Define Business decision to do next
+        # fall back procedure
+    except DatabaseError as e:
+        logger.critical(f"Could not sync groups: {e}. Caused by: {e.original_exc} - exiting")
+        return 1
+    except APIError as e:
+        logger.critical(f"Could not sync groups: {e}. Caused by: {e.original_exc} - exiting")
+        # Define Business decision to do next
+        # fall back procedure
+    except AppError as e:
+        logger.critical(f"Could not sync groups: {e}. - exiting")
+        # Define Business decision to do next
 
 
     logger.debug(f"DEV_MAIN END")

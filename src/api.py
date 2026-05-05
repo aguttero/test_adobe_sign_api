@@ -17,13 +17,19 @@ logger = logging.getLogger(__name__)
 
 # CREDENTIALS CONFIG
 config = dotenv_values(".env")
-CLIENT_ID: str = config.get("CLIENT_ID", "")
-CLIENT_SECRET: str = config.get("CLIENT_SECRET", "")
-REFRESH_TOKEN: str = config.get("REFRESH_TOKEN", "")
+CLIENT_ID = config.get("CLIENT_ID")
+CLIENT_SECRET = config.get("CLIENT_SECRET")
+REFRESH_TOKEN = config.get("REFRESH_TOKEN")
+
+# VALIDATE THAT CREDENTIALS LOADED OK
+logger.debug(f"DOT ENV LOAD VALIDATION")
+if not CLIENT_ID:
+    logger.critical(f"Failed to load API credentials from .env")
+    raise APIError(f"Failed to load API credentials from .env")
 
 # API CONFIG
-SHARD: str = config.get("ADOBE_SHARD","na1")
-BASE_URL: str = f"https://api.{SHARD}.echosign.com"
+SHARD = config.get("ADOBE_SHARD")
+BASE_URL = f"https://api.{SHARD}.echosign.com"
 
 # ENDPOINTS
 FETCH_USER_LIST_ENDPOINT: str = f"{BASE_URL}/api/rest/v6/users"
@@ -40,6 +46,7 @@ def get_token_manager() -> TokenManager:
     global _token_manager
     if _token_manager is None:
         _token_manager = TokenManager(CLIENT_ID, CLIENT_SECRET, REFRESH_TOKEN)
+        # logger.debug(f"_token_manager.client_id: {_token_manager.client_id}, {_token_manager.client_secret}, {_token_manager.refresh_token}, _token={_token_manager._token}")
     return _token_manager
 
 

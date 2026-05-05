@@ -9,6 +9,7 @@ from dotenv import dotenv_values
 import requests
 from typing import Optional, Tuple
 
+# from api import REFRESH_TOKEN
 from exceptions import AuthError
 
 
@@ -16,7 +17,10 @@ logger = logging.getLogger(__name__)
 
 # CONFIG - Credentials from environment variables
 config = dotenv_values(".env")
-SHARD: str = config.get("ADOBE_SHARD","na1")
+#CLIENT_ID = config.get("CLIENT_ID")
+#CLIENT_SECRET = config.get("CLIENT_SECRET")
+#REFRESH_TOKEN = config.get("REFRESH_TOKEN")
+SHARD = config.get("ADOBE_SHARD","na1")
 BASE_URL: str = f"https://api.{SHARD}.echosign.com"
 REFRESH_ENDPOINT = f"{BASE_URL}/oauth/v2/refresh"
 
@@ -37,13 +41,12 @@ def _refresh_token(client_id: str, client_secret: str, refresh_token: str) -> Tu
     Raises:
         AuthError: If token refresh fails.
     """
-    import os
-    logger.debug("Refreshing token from Adobe Sign API")    
+    logger.debug("Refreshing token from Adobe Sign API")
 
     payload = {
         'grant_type': 'refresh_token',
         'client_id': client_id,
-        'client_client_secret': client_secret,
+        'client_secret': client_secret,
         'refresh_token': refresh_token
     }
 
@@ -114,6 +117,10 @@ class TokenManager:
     def _refresh(self) -> None:
         """Refresh the access token."""
         logger.info("Refreshing API access token")
+        #logger.debug(f"_refresh client_id: {self.client_id}, {self.client_secret}, {self.refresh_token}")
+
+
         token_data = _refresh_token(self.client_id, self.client_secret, self.refresh_token)
         self._token = token_data[0]
+        #logger.debug(f"token_data[0]={token_data[0]}")
         self._expires_at = time.time() + token_data[1]

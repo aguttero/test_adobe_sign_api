@@ -377,8 +377,8 @@ def insert_sync_history(
     Returns:
         ID of the newly created SyncHistory record.
     """
-    with _get_session() as session:
-        try:
+    try:
+        with _get_session() as session:
             sync_record = models.SyncHistory(
                 run_id=run_id,
                 run_date=date.today(),
@@ -398,12 +398,12 @@ def insert_sync_history(
             )
             session.add(sync_record)
             session.commit()
-            logger.debug(f"Inserted SyncHistory record with ID: {sync_record.run_id}, pk_id: {sync_record.id}")
+            logger.debug(f"Inserted SyncHistory record with ID: {sync_record.run_id}, PK_ID: {sync_record.id}")
             return sync_record.run_id
-        except SQLAlchemyError as e:
-            session.rollback()
-            logger.error(f"Failed to insert SyncHistory: {e}")
-            raise DatabaseError(f"Failed to insert SyncHistory: {e}", original_exc=e)
+    except SQLAlchemyError as e:
+        session.rollback()
+        logger.error(f"Failed to insert SyncHistory: {e}")
+        raise DatabaseError(f"Failed to insert SyncHistory: {e}", original_exc=e)
 
 def update_sync_history(
     sync_id: int,

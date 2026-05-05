@@ -12,3 +12,21 @@
 
 ## Get initial agreement count for rollback tracking
 * db.get_agreement_count() OK
+
+## Sync Groups
+* sync_groups()
+    * api.fetch_all_groups()
+    * get_token_manager().get_token()
+
+2026-05-05 08:40:56,725 [DEBUG] main.sync_groups — Group list len: 12
+2026-05-05 08:40:56,725 [ERROR] main.sync_groups — Failed to sync groups: name 'convert_to_sqlite_date' is not defined
+
+
+TODO Revisar y definir jerarquia de error handling
+TODO Refator _get_token_manager que está en API . y refresh TOKEN que llama a API desde AUTH
+
+## Sync Users
+* sync_users()
+
+## Sync Agreements
+* sync_agreements()
