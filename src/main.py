@@ -130,15 +130,15 @@ def sync_groups() -> Optional[int]:
     """Fetches, parses, and upserts group data into the database. Returns 0 on success, 1 on failure."""
     try:
         api_groups_list: list[dict] = api.fetch_all_groups()
-        logger.debug(f"Group list len: {len(api_groups_list)}")
 
         if len(api_groups_list) == 0:
-            logger.warning(f"Synced {len(api_groups_list)} groups")
+            logger.warning(f"Sync {len(api_groups_list)} groups")
+            # determinar si raise APP ERROR
             return None
 
         parsed_groups = models.parse_groups(api_groups_list)
         db.upsert_groups(parsed_groups)
-        logger.info("Group synchronization completed successfully.")
+        logger.info(f"Group synchronization completed successfully. API list len={len(api_groups_list)}")
         return len(api_groups_list)
 
     except Exception as e:
@@ -146,16 +146,18 @@ def sync_groups() -> Optional[int]:
         raise AppError (f"APP ERROR: Failed to sync groups: {e}")
 
 
-def sync_users() -> int:
+def sync_users() -> Optional[int]:
     """Fetches, transforms, and inserts new user data. Returns 0 on success, 1 on failure."""
     try:
         # Fetch users from Adobe Sign API
         api_user_list: List[dict] = api.fetch_all_users()
+        logger.debug(f"api user list len={len(api_user_list)}")
 
         # Business condition: handle empty user list
-        if not api_user_list:
-            logger.warning("No users fetched from API - skipping user sync.")
-            return 0 # No users found, but not a failure of the sync process itself
+        if len (api_user_list) == 0:
+            logger.warning(f"Sync {len(api_user_list)} users")
+            # determinar si raise APP ERROR
+            return None
 
         # Transform API response keys to DB schema
         transformed_user_list: List[dict] = db.transform_user_list_keys(api_user_list)
@@ -164,15 +166,15 @@ def sync_users() -> int:
         # Insert only new users (not in existing email list)
         db.insert_new_items_by_email_key(transformed_user_list)
         logger.info("User synchronization completed successfully.")
-        return 0 # Success code
+        return len(api_user_list)
 
     except APIError as e:
         logger.error(f"API error during user sync: {e}")
         # Specific handling for invalid user could be added here if needed
-        return 1 # Failure code
+        raise APIError (f"API ERROR: {e}", original_exc=e)
     except Exception as e:
         logger.error(f"An unexpected error occurred during user sync: {e}")
-        return 1 # Failure code
+        raise AppError (f"APP ERROR: Failed to sync users: {e}")
 
 def sync_agreements() -> int:
     """Searches for and persists new agreements for all users in the database.
@@ -351,10 +353,17 @@ def dev_main () -> int:
     # EXECUTE PIPELINE STEPS
     try:
         result_groups_sync = sync_groups()
-        
+        logger.debug(f"Pipe 1. result_grp_sync={result_groups_sync}")
         if not result_groups_sync:
             logger.warning(f"Synced {result_groups_sync} groups. - exiting")
             return 1
+        
+        result_users_sync = sync_users()
+        logger.debug(f"Pipe 2. result_user_sync={result_users_sync}")
+        if not result_users_sync:
+            logger.warning(f"Synced {result_users_sync} users. - exiting")
+            return 1
+        
 
         # Define Business decision to do next
         # fall back procedure

@@ -14,23 +14,37 @@
 * db.get_agreement_count() OK
 
 ## Sync Groups
-* sync_groups()
+* sync_groups() ok
     * api.fetch_all_groups()
     * get_token_manager().get_token()
-BUG 
-2026-05-05 08:40:56,725 [DEBUG] main.sync_groups — Group list len: 12
-2026-05-05 08:40:56,725 [ERROR] main.sync_groups — Failed to sync groups: name 'convert_to_sqlite_date' is not defined
+    * models.parse_groups(api_list)
+        * convert_to_sqlite_date
+    *db.upsert_groups(parsed_groups) (session.merge)
 
 
 TODO Revisar y definir jerarquia de error handling
+TODO Agregar error handling a las funciones que no tienen
 TODO Refator _get_token_manager que está en API . y refresh TOKEN que llama a API desde AUTH
 
 ## Sync Users
 * sync_users()
+    * api.fetch_all_users() -> List DICT
+    * db.transform_user_list_keys(api_user_list)
+    TODO Parse users en Models (igual que groups)
+    * db.insert_new_items_by_email_key(transformed_user_list)
+        * db.get_existing_emails() existing_emails
+        * db.filter_new_users (existing_emails)
+        * db.bulk_insert_list (new_users_list)
+TODO Revisar y definir jerarquia de error handling
+TODO Agregar error handling a las funciones que no tienen
+TODO Revisar logica de usuarios archivados
+TODO crear funcion upsert Users
+
 
 ## Sync Agreements
 * sync_agreements()
 
+IA TOKENS:
 TODO Context Caching
 TODO Two-tier routing
 TODO Batch processing -> Documentation 50% discount

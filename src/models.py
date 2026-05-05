@@ -60,7 +60,7 @@ class Group(Base):
     agreements: Mapped[List["Agreement"]] = relationship(back_populates="group")
     
     def __repr__(self) -> str:
-        return f"Group(name={self.name!r}, pk_id={self.id!r}, group_id={self.group_id}, created_date={self.created_date!r}, last_sync={self.last_sync!r}, admin_email={self.admin_email!r}, is_default_grp={self.is_default_grp!r})"
+        return f"Group(name={self.name!r}, pk_id={self.id!r}, group_id={self.group_id!r}, created_date={self.created_date!r}, last_sync={self.last_sync!r}, admin_email={self.admin_email!r}, is_default_grp={self.is_default_grp!r})"
 
 class Workflow(Base):
     """Workflow model mapped to workflow table"""
@@ -135,52 +135,7 @@ class DocFieldContent(Base):
     def __repr__(self) -> str:
         return f"DocFieldContent(pk_id={self.id!r}, fk_id={self.agreement_id!r})"
 
-def parse_agreements(api_agreement_data: List[dict], group_pk_lookup: dict[str,int]) -> List[Agreement]:
-    """Parses raw API response into typed Agreement instances. Uses the group_pk_lookup dict to assign the correct group_id_ref value to Agreement instance"""
-    agreement_list = []
-    for item in api_agreement_data:
-        group_id_ref = group_pk_lookup.get(item.get("groupId"))
-        if group_id_ref is None:
-            logger.warning(f"Skipping agreement {item.get('id')} — unknown adobe_group_id")
-            continue
-        
-        created_date_str = item.get("createdDate", "")
-        created_date = convert_to_sqlite_date(created_date_str)
-        
-        modified_date_str = item.get("modifiedDate", "")
-        modified_date = convert_to_sqlite_date(modified_date_str)
-        
-        # Extract document field content
-        doc_field_contents_data = item.get("docFieldList", [])
-        doc_field_contents = []
-        if doc_field_contents_data:
-            for field in doc_field_contents_data:
-                doc_field_contents.append(models.DocFieldContent(
-                    agreement_id=item.get("id"), # This will be the Agreement's ID after it's created
-                    agreement_subtype=field.get("subType"),
-                    requester_area=field.get("defaultValue", ""), # Assuming defaultValue contains relevant info
-                ))
-
-        agreement_list.append(models.Agreement(
-            agreement_id=item.get("id"),
-            name=item.get("name"),
-            type="AGREEMENT",
-            status=item.get("status"),
-            workflow_id=item.get("workflowId"),
-            group_id=item.get("groupId"),
-            group_id_ref=group_id_ref,
-            created_date=created_date,
-            modified_date=modified_date,
-            user_id=item.get("userId")
-        ))
-    logger.debug(f"Parsed {len(agreement_list)} agreements")
-    return agreement_list
-
-
-
-
-
-def parse_agreements(api_agreement_data: List[dict], group_pk_lookup: dict[str,int]) -> List[Agreement]:
+def parse_agreements_v1(api_agreement_data: List[dict], group_pk_lookup: dict[str,int]) -> List[Agreement]:
     """Parses raw API response into typed Agreement instances. Uses the group_pk_lookup dict to assign the correct group_id_ref value to Agreement instance"""
     agreement_list = []
     for item in api_agreement_data:
@@ -302,7 +257,7 @@ def parse_groups(group_data: List[dict]) -> List[Group]:
     logger.debug(f"Parsed {counter} groups")
     return parsed_groups_list
 
-def parse_agreements(api_agreement_data: List[dict], group_pk_lookup: dict[str,int]) -> List[Agreement]:
+def parse_agreements_v0 (api_agreement_data: List[dict], group_pk_lookup: dict[str,int]) -> List[Agreement]:
     """Parses raw API response into typed Agreement instances. Uses the group_pk_lookup dict to assign the correct group_id_ref value to Agreement instance"""
     agreement_list = []
     for item in api_agreement_data:

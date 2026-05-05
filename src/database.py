@@ -213,7 +213,7 @@ def insert_new_items_by_email_key(input_list: List[dict]) -> None:
         bulk_insert_list(models.User, new_users)
         logger.info(f"Inserted {len(new_users)} new users")
     else:
-        logger.getLogger(__name__).debug("No new users to insert")
+        logger.info("No new users to insert")
 
 def get_user_by_email(user_email: str) -> models.User:
     """Fetch a user by email address.
@@ -543,18 +543,18 @@ def upsert_groups(all_groups_list: list[models.Group])-> None:
                 group_id: pk
                 for pk, group_id in session.query(models.Group.id, models.Group.group_id).all()
             }
-            logger.debug(f"existing_dict={existing}")
+            #logger.debug(f"existing_dict={existing}")
             for group_record in all_groups_list:
                 internal_pk = existing.get(group_record.group_id)
-                logger.debug(f"internal_pk={internal_pk}")      # None → INSERT, int → UPDATE
+                #logger.debug(f"internal_pk={internal_pk}")      # None → INSERT, int → UPDATE
 
                 is_new_record = internal_pk is None
 
                 group_record.id = internal_pk           # None lets DB assign PK on insert
 
                 session.merge(group_record)
-                logger.debug(f"merge group_record={group_record}")             # INSERT or UPDATE based on PK
-                logger.debug(f"Upserted group: {group_record.group_id}")
+                #logger.debug(f"merge group_record={group_record}")             # INSERT or UPDATE based on PK
+                #logger.debug(f"Upserted group: {group_record.group_id}")
 
                 if is_new_record:
                     existing[group_record.group_id] = ...            # guard intra-batch duplicates - updates table again if second api hit is received for same group_id
@@ -566,7 +566,7 @@ def upsert_groups(all_groups_list: list[models.Group])-> None:
         session.rollback()
         logger.error(f"Failed to upsert group: {group_record} Error: {e}")
         summary["skipped"] += 1
-        raise DatabaseError(f"Failed to upsert group: {e}", original_exc=e)
+        raise DatabaseError(f"DB ERROR: Failed to upsert group: {e}", original_exc=e)
     logger.debug(f"{summary}")
 
 def get_group_pk()-> dict:
