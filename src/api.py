@@ -195,7 +195,7 @@ def fetch_all_workflows() -> List[dict]:
             api_response.raise_for_status()
 
             response_data = api_response.json()
-            all_workflows.extend(response_data.get('workflowCursorList', []))
+            all_workflows.extend(response_data.get('userWorkflowList', []))
 
             cursor = response_data.get('pageInfo', {}).get('nextCursor')
 
@@ -213,7 +213,7 @@ def fetch_all_workflows() -> List[dict]:
     logger.info(f"Fetched {len(all_workflows)} workflows")
     return all_workflows
 
-def search_agreements(
+def search_agreements_user(
     user_email: str,
     date_range_start: str,
     date_range_end: str

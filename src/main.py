@@ -25,9 +25,9 @@ TEST_USER_LIST_FILENAME: str = f"{SECRETS_FOLDER}test_user_list_mock_v02.txt"
 
 
 # Default date range (should be read from DB in production)
-DEFAULT_LAST_DATE_RANGE_END: str = "2020-01-11T00:00:00Z"
+DEFAULT_LAST_DATE_RANGE_END: str = "2020-03-16T00:00:00Z"
 #DEFAULT_LAST_DATE_RANGE_END: str = "2026-04-15T00:00:00Z"
-DAYS_TO_ADD_TO_RANGE: int = 2
+DAYS_TO_ADD_TO_RANGE: int = 20
 
 # Init Module-level logger
 logger = logging.getLogger(__name__)
@@ -127,7 +127,7 @@ def prepare_date_range(last_sync_date_str: str) -> Tuple[str | None, str | None]
     return new_start_date_str, new_end_date_str
 
 def sync_groups() -> Optional[int]:
-    """Fetches, parses, and upserts group data into the database. Returns 0 on success, 1 on failure."""
+    """Fetches, parses, and upserts group data into the database. Returns quantuty of groups found on success or raises APP ERROR on failure."""
     try:
         api_groups_list: list[dict] = api.fetch_all_groups()
 
@@ -138,16 +138,44 @@ def sync_groups() -> Optional[int]:
 
         parsed_groups = models.parse_groups(api_groups_list)
         db.upsert_groups(parsed_groups)
-        logger.info(f"Group synchronization completed successfully. API list len={len(api_groups_list)}")
-        return len(api_groups_list)
+        logger.info(f"Group synchronization completed successfully. Parsed {len(parsed_groups)} groups")
+        return len(parsed_groups)
 
     except Exception as e:
         logger.error(f"Failed to sync groups: {e}")
         raise AppError (f"APP ERROR: Failed to sync groups: {e}")
 
 
+def sync_workflows() -> Optional[int]:
+    """Fetches, parses, and upserts workflow data into the database. 
+    
+    Returns: quantity of workflows found on success or 
+    
+    Raises: APP ERROR on failure."""
+    try:
+        api_workflow_list: list[dict] = api.fetch_all_workflows()
+
+        if len(api_workflow_list) == 0:
+            logger.warning(f"Sync {len(api_workflow_list)} workflows")
+            # Determine how to handle this situation
+            raise AppError(f"APP ERROR: no workflows fetched")
+
+        parsed_workflows = models.parse_workflows(api_workflow_list)
+        
+        ### TEST CODE ###
+        # logger.debug(f"parsed_workflows:\n{parsed_workflows}")
+        ### TEST CODE ###
+       
+       # db.upsert_groups(parsed_groups)
+        logger.info(f"Worklow synchronization completed successfully. Parsed {len(api_workflow_list)} workflows")
+        return len(api_workflow_list)
+
+    except Exception as e:
+        logger.error(f"Failed to sync workflows: {e}")
+        raise AppError (f"APP ERROR: Failed to sync workflows: {e}")
+
 def sync_users() -> Optional[int]:
-    """Fetches, transforms, and inserts new user data. Returns 0 on success, 1 on failure."""
+    """Fetches, transforms, and inserts new user data. Returns quantity of users found on success or raises APP ERROR on failure."""
     try:
         # Fetch users from Adobe Sign API
         api_user_list: List[dict] = api.fetch_all_users()
@@ -176,7 +204,25 @@ def sync_users() -> Optional[int]:
         logger.error(f"An unexpected error occurred during user sync: {e}")
         raise AppError (f"APP ERROR: Failed to sync users: {e}")
 
-def sync_agreements() -> int:
+def search_agreements_users( user_list: List[dict],
+                            date_range_start: str,
+                            date_range_end: str) -> Tuple[int, int, int]:
+    """Search agreements for multiple users and persist to DB.
+
+    Args:
+        user_list: List of user dictionaries with 'email' and 'adbe_sign_id'.
+        date_range_start: Start date for search (ISO format).
+        date_range_end: End date for search (ISO format).
+
+    Returns:
+        Tuple of (total_users_searched, users_with_zero_agreements, users_with_agreements).
+    """
+    pass
+
+
+
+
+def sync_agreements(date_range_start, date_range_end) -> Optional[int]:
     """Searches for and persists new agreements for all users in the database.
 
     This function is called after user synchronization is complete.
@@ -184,25 +230,62 @@ def sync_agreements() -> int:
     and persists the found agreements and their signers to the database.
 
     Returns:
-        0 for success, 1 for failure.
+        Quantity of agreements or raises App Error.
     """
     logger.info("Starting agreement sync for all users in database")
+    logger.debug(f"date_range_start={date_range_start}, date_range_end= {date_range_end}")
 
-    # Get all users from database (exclude INVALID_USER status)
-    all_users: List[dict] = db.get_all_users(exclude_status="INVALID_USER")
+    # Get all users from database (exclude INVALID_USER status) list of dict with email and adobe_id
+    all_valid_users: List[dict] = db.get_all_users(exclude_status="INVALID_USER")
 
-    if not all_users:
-        logger.warning("No users found in database - skipping agreement sync")
-        return 0 # No users to sync agreements for, not a failure
+    if len(all_valid_users) == 0:
+        logger.warning(f"Sync {len(all_valid_users)} users")
+        raise AppError (f"APP ERROR: Found {len(all_valid_users)} valid users in DB")
 
-    logger.info(f"Found {len(all_users)} users in database to search agreements for")
+    logger.info(f"Found {len(all_valid_users)} valid users in database to search agreements for")
 
-    # Search agreements for each user
-    total_users, users_with_zero, users_with_agr = sync_agreements_for_users(all_users, date_range_start, date_range_end)
-    logger.info(f"Agreement sync finished: {total_users} users searched, "
-              f"{users_with_zero} with zero agreements, {users_with_agr} with agreements")
+    # Search and persist agreements and signers for each user
+    # Output: total_users, users_with_zero, users_with_agr qty of new agreements
+    for user_dict in all_valid_users[:1]:
+        user_email = user_dict['email']
+        
+        ### TEST CODE ####
+        from dotenv import dotenv_values
+        config = dotenv_values(".env")
+        user_email = config.get('TEST_DEV_USER_EMAIL2')
+        #### TEST CODE ####
+
+        user_sign_id = user_dict['adbe_sign_id']
+        logger.debug(f"user_email={user_email}, user_sign_id={user_sign_id}")
+        api_output = api.search_agreements_user(user_email, date_range_start, date_range_end)
+
+        # get user id from DB
+        user_instance = db.get_user_by_email(user_email)
+        logger.debug(f"user_instance={user_instance}")
+
+        # OLD insert agreement
+        insert_result = db.insert_agreements(api_output,user_instance.id)
+        logger.debug(f"insert_result={insert_result}")
+        
+        # parse api output
+            # agreements
+            # Signers
+        # agreement_list = models.parse_agreements_v0
+
+        
+
+        # persist data
+
+
+
+
+    # total_users, users_with_zero, users_with_agr = api.search_agreements(all_valid_users, date_range_start, date_range_end)
+    # logger.info(f"Agreement sync finished: {total_users} users searched, {users_with_zero} with zero agreements, {users_with_agr} with agreements")
     
-    return 0 # Success code
+    return 999 # qty of new persisted agreements
+
+
+
 
 def main() -> int:
     """Main entry point for the application orchestrates the sync process."""
@@ -352,18 +435,31 @@ def dev_main () -> int:
 
     # EXECUTE PIPELINE STEPS
     try:
-        result_groups_sync = sync_groups()
-        logger.debug(f"Pipe 1. result_grp_sync={result_groups_sync}")
-        if not result_groups_sync:
-            logger.warning(f"Synced {result_groups_sync} groups. - exiting")
-            return 1
+        # result_groups_sync = sync_groups()
+        # logger.debug(f"Pipe 1. result_grp_sync={result_groups_sync}")
+        # if not result_groups_sync:
+        #     logger.warning(f"Synced {result_groups_sync} groups. - exiting")
+        #     return 1
         
-        result_users_sync = sync_users()
-        logger.debug(f"Pipe 2. result_user_sync={result_users_sync}")
-        if not result_users_sync:
-            logger.warning(f"Synced {result_users_sync} users. - exiting")
+        result_wkflw_sync = sync_workflows()
+        logger.debug(f"Pipe 2. result_grp_sync={result_wkflw_sync}")
+        if not result_wkflw_sync:
+            logger.warning(f"Synced {result_wkflw_sync} groups. - exiting")
             return 1
+
         
+        #result_users_sync = sync_users()
+        #logger.debug(f"Pipe 3. result_user_sync={result_users_sync}")
+        #if not result_users_sync:
+        #    logger.warning(f"Synced {result_users_sync} users. - exiting")
+        #    return 1
+        
+        # result_agreement_sync = sync_agreements(date_range_start,date_range_end)
+        # logger.debug(f"Pipe 4. result_agreement_sync={result_agreement_sync}")
+        # if not result_agreement_sync:
+        #     logger.warning(f"Synced {result_agreement_sync} groups. - exiting")
+        #     return 1
+
 
         # Define Business decision to do next
         # fall back procedure

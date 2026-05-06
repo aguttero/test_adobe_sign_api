@@ -68,7 +68,13 @@ class Workflow(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     workflow_id: Mapped[str] = mapped_column(unique=True, index=True)
-    workflow_name: Mapped[str]
+    name_id: Mapped[str]
+    name: Mapped [Optional[str]]
+    description: Mapped [Optional[str]]
+    status: Mapped[str]
+    scope: Mapped[str]
+    scope_id: Mapped[str]
+    created_date:Mapped[dt.date]
     last_sync: Mapped[dt.date] = mapped_column(
         Date,
         default=dt.datetime.today,
@@ -79,11 +85,33 @@ class Workflow(Base):
     agreements: Mapped[List["Agreement"]] = relationship(back_populates="workflow")
 
     def __repr__(self) -> str:
-        return f"Workflow(name={self.workflow_name!r}, workflow_id={self.workflow_id!r})"
+        return f"Workflow(name={self.name!r}, pk_id={self.id!r}, wkflow_name_id={self.name_id!r}, wkflow_adbe_id={self.workflow_id!r}, )"
 
-# TODO: Implement parsing for Workflow data if needed
-# def parse_workflows(workflow_data: List[dict]) -> List[Workflow]:
-#     pass
+def parse_workflows(wkflow_data: List[dict]) -> List[Workflow]:
+    """Converts raw API dicts into typed Group instances."""
+    parsed_wkflow_list =[]
+    counter = 0
+    for list_item in wkflow_data:
+        # Parse createdDate from ISO format
+        created_date_str: str = list_item.get("created")
+        created_date = convert_to_sqlite_date(created_date_str)
+        today = dt.date.today() 
+
+        new_wkflow = Workflow(
+                    workflow_id=list_item.get("id"),
+                    name_id=list_item.get("name"),
+                    name=list_item.get("displayName", ""),
+                    description=list_item.get("description", ""),
+                    status=list_item.get("status"),
+                    scope=list_item.get("scope"),
+                    scope_id=list_item.get("scopeId"),
+                    created_date=created_date,
+                    last_sync=today,
+                )
+        parsed_wkflow_list.append(new_wkflow)
+        counter +=1
+    logger.debug(f"Parsed {counter} workflows")
+    return parsed_wkflow_list
 
 class Agreement(Base):
     """Agreement model mapped to agreement table. All agreements belong to a Group."""
@@ -177,7 +205,6 @@ def parse_agreements_v1(api_agreement_data: List[dict], group_pk_lookup: dict[st
     logger.debug(f"Parsed {len(agreement_list)} agreements")
     return agreement_list
 
-
 class AgreementSigner(Base):
     """Agreement signer model mapped to agreement_signer table."""
     __tablename__ = "agreement_signer"
@@ -196,7 +223,6 @@ class AgreementSigner(Base):
 
     def __repr__(self) -> str:
         return f"AgreementSigner(email={self.signer_email!r}, full_name={self.signer_full_name!r}, role={self.signer_role!r})"
-
 
 class SyncHistory(Base):
     """Sync history model mapped to sync_history table."""

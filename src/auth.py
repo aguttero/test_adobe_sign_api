@@ -119,7 +119,6 @@ class TokenManager:
         logger.info("Refreshing API access token")
         #logger.debug(f"_refresh client_id: {self.client_id}, {self.client_secret}, {self.refresh_token}")
 
-
         token_data = _refresh_token(self.client_id, self.client_secret, self.refresh_token)
         self._token = token_data[0]
         #logger.debug(f"token_data[0]={token_data[0]}")
