@@ -452,7 +452,6 @@ def update_sync_history(
             logger.error(f"Failed to update SyncHistory: {e}")
             raise DatabaseError(f"Failed to update SyncHistory: {e}", original_exc=e)
 
-
 def get_agreement_count() -> int:
     """Get the current total count of agreements in the database.
     
@@ -533,8 +532,8 @@ def upsert_groups(all_groups_list: list[models.Group])-> None:
         group_record: Group instance with keys: group_id, name, created_date, last_sync, is_default_grp.
     """
    
-    summary = {"inserted": 0, "updated": 0, "skipped": 0, "errors": []}
-    logger.debug(f"all_grp_list={all_groups_list}")
+    summary = {"inserted": 0, "updated": 0, "skipped": 0}
+    #logger.debug(f"all_grp_list={all_groups_list}")
     try:
         with _get_session() as session:
             
@@ -595,11 +594,46 @@ def get_workflow_by_api_id(api_workflow_id: str) -> Optional[models.Workflow]:
     logger.warning(f"get_workflow_by_api_id({api_workflow_id}) is not yet implemented.")
     return None
 
-def upsert_workflows(workflows: List[models.Workflow]) -> None:
-    """Upserts a list of workflows into the database."""
-    # This function needs to handle both insertion of new workflows and updating existing ones.
-    # It should use session.merge() or similar logic, possibly requiring a unique identifier for workflows.
-    logger.warning("upsert_workflows() is not yet implemented.")
+def upsert_workflows(wkflow_list: List[models.Workflow]) -> None:
+    """Upserts a list of workflows into the database using workflow_id as natural key.
+     Uses session.merge() after resolving the internal PK via workflow_id lookup (PREFETCH)."""
+
+    summary = {"inserted": 0, "updated": 0, "skipped": 0}
+    # logger.debug(f"wkflow_list={wkflow_list}")
+    try:
+        with _get_session() as session:
+            
+            # Single prefetch — map workflow_id → internal PK for the whole batch
+            existing: dict = {
+                workflow_id: pk
+                for pk, workflow_id in session.query(models.Workflow.id, models.Workflow.workflow_id).all()
+            }
+            logger.debug(f"existing_dict={existing}")
+            for wkflow_record in wkflow_list:
+                internal_pk = existing.get(wkflow_record.workflow_id)
+                #logger.debug(f"internal_pk={internal_pk}")      # None → INSERT, int → UPDATE
+
+                is_new_record = internal_pk is None
+
+                wkflow_record.id = internal_pk           # None lets DB assign PK on insert
+
+                session.merge(wkflow_record)
+                #logger.debug(f"merge wkflow_record={wkflow_record}")             # INSERT or UPDATE based on PK
+                #logger.debug(f"Upserted wkflow: {wkflow_record.workflow_id}")
+
+                if is_new_record:
+                    existing[wkflow_record.workflow_id] = ...            # guard intra-batch duplicates - updates table again if second api hit is received for same workflow_id
+                    summary["inserted"] += 1
+                else:
+                    summary["updated"] += 1
+            session.commit()
+    except SQLAlchemyError as e:
+        session.rollback()
+        logger.error(f"Failed to upsert workflow: {wkflow_record} Error: {e}")
+        summary["skipped"] += 1
+        raise DatabaseError(f"DB ERROR: Failed to upsert workflow: {e}", original_exc=e)
+    logger.debug(f"{summary}")
+
 
 # def get_workflow_by_api_id(api_workflow_id: str) -> Optional[models.Workflow]:
 #     """Gets a workflow from the database by its API ID."""

@@ -31,7 +31,9 @@ TODO Refator _get_token_manager que está en API . y refresh TOKEN que llama a A
 * sync_workflows
     * api.fetch_all_workflows()
         * get_token_manager().get_token()
-
+    * models.parse_workflows(api_workflow_list)
+    * db.upsert_workflows(parsed_workflows)
+    
 
 ## Sync Users
 ## Updates all users

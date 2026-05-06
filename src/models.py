@@ -21,7 +21,7 @@ class User(Base):
     
     id: Mapped[int] = mapped_column(primary_key=True)
     email: Mapped[str] = mapped_column(unique=True, index=True)
-    group_id: Mapped[Optional[int]]
+    group_id: Mapped[Optional[str]]
     first_name: Mapped[Optional[str]]
     last_name: Mapped[Optional[str]]
     job_area: Mapped[Optional[str]]
@@ -42,7 +42,7 @@ class User(Base):
 
 class Group(Base):
     """Reference table for Adobe Sign groups."""
-    __tablename__ = 'group'
+    __tablename__ = "group"
     
     id: Mapped[int] = mapped_column(primary_key=True)
     group_id: Mapped[str] = mapped_column(unique=True, index=True)

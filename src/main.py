@@ -166,9 +166,9 @@ def sync_workflows() -> Optional[int]:
         # logger.debug(f"parsed_workflows:\n{parsed_workflows}")
         ### TEST CODE ###
        
-       # db.upsert_groups(parsed_groups)
-        logger.info(f"Worklow synchronization completed successfully. Parsed {len(api_workflow_list)} workflows")
-        return len(api_workflow_list)
+        db.upsert_workflows(parsed_workflows)
+        logger.info(f"Worklow synchronization completed successfully. Parsed {len(parsed_workflows)} workflows")
+        return len(parsed_workflows)
 
     except Exception as e:
         logger.error(f"Failed to sync workflows: {e}")
@@ -441,10 +441,10 @@ def dev_main () -> int:
         #     logger.warning(f"Synced {result_groups_sync} groups. - exiting")
         #     return 1
         
-        result_wkflw_sync = sync_workflows()
-        logger.debug(f"Pipe 2. result_grp_sync={result_wkflw_sync}")
-        if not result_wkflw_sync:
-            logger.warning(f"Synced {result_wkflw_sync} groups. - exiting")
+        result_wkflow_sync = sync_workflows()
+        logger.debug(f"Pipe 2. result_wkflow_sync={result_wkflow_sync}")
+        if not result_wkflow_sync:
+            logger.warning(f"Synced {result_wkflow_sync} groups. - exiting")
             return 1
 
         
