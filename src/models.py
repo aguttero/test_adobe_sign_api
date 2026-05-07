@@ -42,7 +42,7 @@ class User(Base):
 
 class Group(Base):
     """Reference table for Adobe Sign groups."""
-    __tablename__ = "group"
+    __tablename__ = "adbe_group"
     
     id: Mapped[int] = mapped_column(primary_key=True)
     group_id: Mapped[str] = mapped_column(unique=True, index=True)
@@ -125,7 +125,7 @@ class Agreement(Base):
     status: Mapped[str]
     # workflow_id: Mapped[Optional[str]] # Normalize
     # group_id: Mapped[str] # Normalize
-    group_id_ref: Mapped[int] = mapped_column(ForeignKey("group.id"))
+    group_id_ref: Mapped[int] = mapped_column(ForeignKey("adbe_group.id"))
     workflow_id_ref: Mapped[Optional[int]] = mapped_column(ForeignKey("workflow.id"))
     created_date: Mapped[dt.date]
     modified_date: Mapped[dt.date]

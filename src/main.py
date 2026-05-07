@@ -441,11 +441,11 @@ def dev_main () -> int:
         #     logger.warning(f"Synced {result_groups_sync} groups. - exiting")
         #     return 1
         
-        result_wkflow_sync = sync_workflows()
-        logger.debug(f"Pipe 2. result_wkflow_sync={result_wkflow_sync}")
-        if not result_wkflow_sync:
-            logger.warning(f"Synced {result_wkflow_sync} groups. - exiting")
-            return 1
+        # result_wkflow_sync = sync_workflows()
+        # logger.debug(f"Pipe 2. result_wkflow_sync={result_wkflow_sync}")
+        # if not result_wkflow_sync:
+        #     logger.warning(f"Synced {result_wkflow_sync} groups. - exiting")
+        #     return 1
 
         
         #result_users_sync = sync_users()
