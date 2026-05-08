@@ -47,7 +47,7 @@ TODO Refator _get_token_manager que está en API . y refresh TOKEN que llama a A
         * db.bulk_insert_list (new_users_list)
 TODO Revisar y definir jerarquia de error handling
 TODO Agregar error handling a las funciones que no tienen
-TODO Revisar logica de usuarios archivados
+TODO Revisar logica de usuarios archivados de Adobe Sign
 TODO crear funcion upsert Users
 
 
@@ -63,7 +63,13 @@ TODO crear funcion upsert Users
     BUG fix counter tot user, users with new agreements, users without new agreements
     TODO separate with parsers from api output to DB injection
 
-    TODO issue with old users, old groups, old workflows
+    TODO low priority review issue with old users, old groups, old workflows
+    TODO low priority optimize with prefetch para agreements existentes db.insert_agreements
+
+## FIX DB Sync close
+
+## DELETE Unused functions
+## UPDATE Agents.md
 
     
 
