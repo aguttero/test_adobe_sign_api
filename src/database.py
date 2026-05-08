@@ -305,6 +305,15 @@ def insert_agreements(agreement_list: List[dict], user_id: int) -> int:
                     group = session.execute(group_stmt).scalar_one_or_none()
                     if group:
                         group_fk = group.id
+                
+                # Lookup Worfflow FK from API groupId
+                api_workflow_id = agr.get("workflow_id", "")
+                workflow_fk = None
+                if api_workflow_id:
+                    wkflow_stmt = select(models.Workflow).filter_by(workflow_id=api_workflow_id)
+                    workflow = session.execute(wkflow_stmt).scalar_one_or_none()
+                    if workflow:
+                        workflow_fk = workflow.id
 
                 # Create agreement record
                 new_agreement = models.Agreement(
@@ -312,7 +321,8 @@ def insert_agreements(agreement_list: List[dict], user_id: int) -> int:
                     name=agr.get("name", ""),
                     type="AGREEMENT",
                     status=agr.get("status", ""),
-                    workflow_id=agr.get("workflow_id", ""),
+                    #workflow_id_ref=agr.get("workflow_id", ""),
+                    workflow_id_ref=workflow_fk,
                     group_id_ref=group_fk,
                     created_date=parse_date(agr.get("created_date", "")),
                     modified_date=parse_date(agr.get("modified_date", "")),

@@ -54,16 +54,18 @@ TODO crear funcion upsert Users
 ## Sync Agreements
 ## Updates agreements for valid users in given date range
 * sync_agreements()
-    * db.get_all_users(exclude_status="INVALID_USER")
-    BUG
-    * api.search_agreements(x,y,z)
+    * db.get_all_users(exclude_status="INVALID_USER") var: all_valid_users
+    * for each user:
+        * api.search_agreements_user(x,y,z) var: api_output
+            * get token manager
+            * user_instance = db.get_user_by_email(user_email)
+            * insert_result = db.insert_agreements(api_output,user_instance.id)
+    BUG fix counter tot user, users with new agreements, users without new agreements
+    TODO separate with parsers from api output to DB injection
 
-BUG
-  File "/Users/alejandroguttero/code_imac/test_adobesign_api/src/main.py", line 201, in sync_agreements
-    total_users, users_with_zero, users_with_agr = sync_agreements_for_users(all_users, date_range_start, date_range_end)
-                                                   ^^^^^^^^^^^^^^^^^^^^^^^^^
-NameError: name 'sync_agreements_for_users' is not defined
+    TODO issue with old users, old groups, old workflows
 
+    
 
 IA TOKENS:
 TODO Context Caching

@@ -250,35 +250,46 @@ def sync_agreements(date_range_start, date_range_end) -> Optional[int]:
         user_email = user_dict['email']
         
         ### TEST CODE ####
+        ## TO ASSIGN TEST USER
         from dotenv import dotenv_values
         config = dotenv_values(".env")
         user_email = config.get('TEST_DEV_USER_EMAIL2')
         #### TEST CODE ####
 
         user_sign_id = user_dict['adbe_sign_id']
+        
+        #### TEST CODE ####
         logger.debug(f"user_email={user_email}, user_sign_id={user_sign_id}")
+        #### TEST CODE ####
+        
+        # SKIP API SEARCH FOR TEST
         api_output = api.search_agreements_user(user_email, date_range_start, date_range_end)
+
+        #### TEST CODE ####
+        ## TO SAVE API DATA TO TEST
+        with open ("src/data/api_fun_agmnt_test_api_out_v2.txt","w") as file:
+            file_content = f"{api_output}"
+            file.write(file_content)
+        logger.debug(f"wrote test file: {len(file_content)} chars")
+
+        ## TO TEST IMPORTING DATA FROM FILE:
+        # import ast
+        # with open ("src/data/api_fun_agmnt_test_api_out.txt","r") as file:
+        #     file_content = file.read()
+        # logger.debug(f"read from file: {len(file_content)} chars")
+        # test_api_output = ast.literal_eval(file_content)
+        # logger.debug(f"OK Assign to list {len(test_api_output)} items")
+        #### TEST CODE ####
 
         # get user id from DB
         user_instance = db.get_user_by_email(user_email)
-        logger.debug(f"user_instance={user_instance}")
+        # logger.debug(f"user_instance={user_instance}")
 
         # OLD insert agreement
         insert_result = db.insert_agreements(api_output,user_instance.id)
-        logger.debug(f"insert_result={insert_result}")
+        #insert_result = db.insert_agreements(test_api_output,user_instance.id)
+        logger.info(f"Inserted {insert_result} agreements")
         
-        # parse api output
-            # agreements
-            # Signers
-        # agreement_list = models.parse_agreements_v0
-
-        
-
-        # persist data
-
-
-
-
     # total_users, users_with_zero, users_with_agr = api.search_agreements(all_valid_users, date_range_start, date_range_end)
     # logger.info(f"Agreement sync finished: {total_users} users searched, {users_with_zero} with zero agreements, {users_with_agr} with agreements")
     
@@ -448,17 +459,17 @@ def dev_main () -> int:
         #     return 1
 
         
-        #result_users_sync = sync_users()
-        #logger.debug(f"Pipe 3. result_user_sync={result_users_sync}")
-        #if not result_users_sync:
+        # result_users_sync = sync_users()
+        # logger.debug(f"Pipe 3. result_user_sync={result_users_sync}")
+        # if not result_users_sync:
         #    logger.warning(f"Synced {result_users_sync} users. - exiting")
         #    return 1
         
-        # result_agreement_sync = sync_agreements(date_range_start,date_range_end)
-        # logger.debug(f"Pipe 4. result_agreement_sync={result_agreement_sync}")
-        # if not result_agreement_sync:
-        #     logger.warning(f"Synced {result_agreement_sync} groups. - exiting")
-        #     return 1
+        result_agreement_sync = sync_agreements(date_range_start,date_range_end)
+        logger.debug(f"Pipe 4. result_agreement_sync={result_agreement_sync}")
+        if not result_agreement_sync:
+            logger.warning(f"Synced {result_agreement_sync} groups. - exiting")
+            return 1
 
 
         # Define Business decision to do next

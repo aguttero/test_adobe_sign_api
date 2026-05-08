@@ -125,7 +125,7 @@ class Agreement(Base):
     status: Mapped[str]
     # workflow_id: Mapped[Optional[str]] # Normalize
     # group_id: Mapped[str] # Normalize
-    group_id_ref: Mapped[int] = mapped_column(ForeignKey("adbe_group.id"))
+    group_id_ref: Mapped[Optional[int]] = mapped_column(ForeignKey("adbe_group.id"))
     workflow_id_ref: Mapped[Optional[int]] = mapped_column(ForeignKey("workflow.id"))
     created_date: Mapped[dt.date]
     modified_date: Mapped[dt.date]
@@ -135,7 +135,7 @@ class Agreement(Base):
 
     user: Mapped[User] = relationship(back_populates="agreements")
 
-    group: Mapped[Group] = relationship(back_populates="agreements")
+    group: Mapped[Optional[Group]] = relationship(back_populates="agreements")
     workflow: Mapped[Optional[Workflow]] = relationship(back_populates="agreements")
     
     # Document field content relationship
