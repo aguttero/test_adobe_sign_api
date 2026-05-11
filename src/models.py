@@ -183,7 +183,7 @@ def parse_agreements_v1(api_agreement_data: List[dict], group_pk_lookup: dict[st
         doc_field_contents = []
         if doc_field_contents_data:
             for field in doc_field_contents_data:
-                doc_field_contents.append(models.DocFieldContent(
+                doc_field_contents.append(DocFieldContent(
                     agreement_id=item.get("id"), # This will be the Agreement's ID after it's created
                     agreement_subtype=field.get("subType"),
                     requester_area=field.get("defaultValue", ""), # Assuming defaultValue contains relevant info
@@ -229,14 +229,17 @@ class SyncHistory(Base):
     __tablename__ = "sync_history"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    run_id: Mapped[str]
+    run_id: Mapped[str] = mapped_column(index=True)
     run_date: Mapped[dt.date]
     run_start_time: Mapped[str]
     run_end_time: Mapped[str]
     elapsed_run_time: Mapped[str]
     agrmnt_range_start: Mapped[str]
     agrmnt_range_end: Mapped[str]
-    agrmnts_found: Mapped[int] = mapped_column(default=0)
+    new_agrmnts: Mapped[int] = mapped_column(default=0)
+    new_users: Mapped[int] = mapped_column(default=0)
+    new_groups: Mapped[int] = mapped_column(default=0)
+    new_wkflows: Mapped[int] = mapped_column(default=0)
     sync_ok: Mapped[bool]
     errors_found: Mapped[bool]
     warnings_found: Mapped[bool]

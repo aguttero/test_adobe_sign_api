@@ -66,12 +66,37 @@ TODO crear funcion upsert Users
     TODO low priority review issue with old users, old groups, old workflows
     TODO low priority optimize with prefetch para agreements existentes db.insert_agreements
 
+## OVERAL SYNC STATUS
+TODO Define how this flag updates
+
+
+## Finalize
+### Calculate elapsed time
+* utils.get_current_timestamp() OK same func as start_time
+* utils.calculate_elapsed_time(start_time, end_time)
+* utils.format_elapsed_time(hours, minutes, seconds)
+
+### Get final agreement count
+* db.get_agreement_count() ok same as used to get initial count
+
+### Update SyncHistory with overall success status
+* log_lines = monitor.read_recent_log_lines(log_file_path)
+* log_counts = monitor.count_log_records_by_level(log_lines)
+TODO Review and verify monitor.py functions
+
+* db.update_sync_history
+TODO IMPORTANT define how to calculate overall_ok flag for sync
+TODO pass the qty of new users, new agreements, new wkflows, new_groups
+
 ## FIX DB Sync close
 
 ## DELETE Unused functions
 ## UPDATE Agents.md
-
     
+# DEBUG
+## SyncHistory star and end time
+
+
 
 IA TOKENS:
 TODO Context Caching

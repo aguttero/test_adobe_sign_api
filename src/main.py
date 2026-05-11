@@ -25,23 +25,30 @@ TEST_USER_LIST_FILENAME: str = f"{SECRETS_FOLDER}test_user_list_mock_v02.txt"
 
 
 # Default date range (should be read from DB in production)
-DEFAULT_LAST_DATE_RANGE_END: str = "2020-03-16T00:00:00Z"
+DEFAULT_LAST_DATE_RANGE_END: str = "2020-01-01T00:00:00Z"
 #DEFAULT_LAST_DATE_RANGE_END: str = "2026-04-15T00:00:00Z"
-DAYS_TO_ADD_TO_RANGE: int = 20
+DAYS_TO_ADD_TO_RANGE: int = 365
 
 # Init Module-level logger
 logger = logging.getLogger(__name__)
+now = datetime.now()
+filestamp = now.strftime("%Y%m%d_%H_%M")
+log_file_path = f"logs/{filestamp}.log"
+
 
 def _configure_logging() -> None:
     """Configure logging format once at startup."""
-    
-    now = datetime.now()
-    filestamp = now.strftime("%Y%m%d_%H_%M")
+
+    # MOVED THESE LINES TO # INIT Module-leve logger    
+    # now = datetime.now()
+    # filestamp = now.strftime("%Y%m%d_%H_%M")
+    # log_file_path = f"logs/{filestamp}.log"
 
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.DEBUG)
 
-    file_handler = logging.FileHandler(f"logs/{filestamp}_new.log")
+
+    file_handler = logging.FileHandler(log_file_path)
     file_handler.setLevel(logging.DEBUG)
 
     logging.basicConfig(
@@ -246,11 +253,15 @@ def sync_agreements(date_range_start, date_range_end) -> Optional[int]:
 
     # Search and persist agreements and signers for each user
     # Output: total_users, users_with_zero, users_with_agr qty of new agreements
+    ### TEST CODE ### LIST SPLIT TO LIMIT ITERATIONS
+    #for user_dict in all_valid_users[:1]:
+    ### TEST CODE ###
+
     for user_dict in all_valid_users[:1]:
         user_email = user_dict['email']
         
         ### TEST CODE ####
-        ## TO ASSIGN TEST USER
+        # TO ASSIGN TEST USER from '.env'
         from dotenv import dotenv_values
         config = dotenv_values(".env")
         user_email = config.get('TEST_DEV_USER_EMAIL2')
@@ -267,10 +278,10 @@ def sync_agreements(date_range_start, date_range_end) -> Optional[int]:
 
         #### TEST CODE ####
         ## TO SAVE API DATA TO TEST
-        with open ("src/data/api_fun_agmnt_test_api_out_v2.txt","w") as file:
-            file_content = f"{api_output}"
-            file.write(file_content)
-        logger.debug(f"wrote test file: {len(file_content)} chars")
+        # with open ("src/data/api_fun_agmnt_test_api_out_v2.txt","w") as file:
+        #     file_content = f"{api_output}"
+        #     file.write(file_content)
+        # logger.debug(f"wrote test file: {len(file_content)} chars")
 
         ## TO TEST IMPORTING DATA FROM FILE:
         # import ast
@@ -365,7 +376,7 @@ def main() -> int:
         
         try:
             db.update_sync_history(
-                sync_id=sync_history_id,
+                lookup_run_id=sync_history_id,
                 agreements_found=agreements_found,
                 sync_ok=overall_sync_ok, # Reflect the actual success status of all sync steps
                 elapsed_time=elapsed_str,
@@ -446,24 +457,23 @@ def dev_main () -> int:
 
     # EXECUTE PIPELINE STEPS
     try:
-        # result_groups_sync = sync_groups()
-        # logger.debug(f"Pipe 1. result_grp_sync={result_groups_sync}")
-        # if not result_groups_sync:
-        #     logger.warning(f"Synced {result_groups_sync} groups. - exiting")
-        #     return 1
+        result_groups_sync = sync_groups()
+        logger.debug(f"Pipe 1. result_grp_sync={result_groups_sync}")
+        if not result_groups_sync:
+            logger.warning(f"Synced {result_groups_sync} groups. - exiting")
+            return 1
         
-        # result_wkflow_sync = sync_workflows()
-        # logger.debug(f"Pipe 2. result_wkflow_sync={result_wkflow_sync}")
-        # if not result_wkflow_sync:
-        #     logger.warning(f"Synced {result_wkflow_sync} groups. - exiting")
-        #     return 1
+        result_wkflow_sync = sync_workflows()
+        logger.debug(f"Pipe 2. result_wkflow_sync={result_wkflow_sync}")
+        if not result_wkflow_sync:
+            logger.warning(f"Synced {result_wkflow_sync} groups. - exiting")
+            return 1
 
-        
-        # result_users_sync = sync_users()
-        # logger.debug(f"Pipe 3. result_user_sync={result_users_sync}")
-        # if not result_users_sync:
-        #    logger.warning(f"Synced {result_users_sync} users. - exiting")
-        #    return 1
+        result_users_sync = sync_users()
+        logger.debug(f"Pipe 3. result_user_sync={result_users_sync}")
+        if not result_users_sync:
+           logger.warning(f"Synced {result_users_sync} users. - exiting")
+           return 1
         
         result_agreement_sync = sync_agreements(date_range_start,date_range_end)
         logger.debug(f"Pipe 4. result_agreement_sync={result_agreement_sync}")
@@ -471,7 +481,55 @@ def dev_main () -> int:
             logger.warning(f"Synced {result_agreement_sync} groups. - exiting")
             return 1
 
+        # Determine overall success status based on individual step statuses
+        overall_sync_ok = True
+        # overall_sync_ok = (group_sync_status == 0 and 
+        #                    user_sync_status == 0 and 
+        #                    agreement_sync_status == 0)
 
+
+        # FINALIZE
+        # Calculate elapsed time
+        end_time: datetime = utils.get_current_timestamp()
+        hours, minutes, seconds = utils.calculate_elapsed_time(start_time, end_time)
+        elapsed_str: str = utils.format_elapsed_time(hours, minutes, seconds)
+        end_time_str: str = end_time.strftime('%Y-%m-%d %H:%M:%S')
+
+        # Get final agreement count
+        final_agreement_count = db.get_agreement_count()
+        agreements_found = final_agreement_count - initial_agreement_count
+
+        # Update SyncHistory with overall success status
+        # log_file_path = "logs/test_log.log"
+        log_lines = monitor.read_recent_log_lines(log_file_path)
+        log_counts = monitor.count_log_records_by_level(log_lines)
+
+        try:
+            db.update_sync_history(
+                lookup_run_id=sync_history_id,
+                agreements_found=agreements_found,
+                sync_ok=overall_sync_ok, # Reflect the actual success status of all sync steps
+                elapsed_time=elapsed_str,
+                end_time=end_time_str,
+                error_qty=log_counts.get("ERROR", 0),
+                warning_qty=log_counts.get("WARNING", 0),
+                critical_qty=log_counts.get("CRITICAL", 0)
+            )
+        except Exception as e:
+            logger.warning(f"Failed to update sync history: {e}")
+        
+        logger.info(f"Main execution completed. Overall status: {'Success' if overall_sync_ok else 'Failed'}")
+        logger.info(f"End time: {end_time_str}")
+        logger.info(f"Elapsed time: {elapsed_str}")
+        logger.info(f"Agreements found: {agreements_found}")
+        logger.info(f"Run ID: {run_id} - {'COMPLETED' if overall_sync_ok else 'FAILED'}")
+        
+        return 0 if overall_sync_ok else 1
+
+
+    except AuthError as e:
+        logger.error(f"Authentication failed: {e}")
+        # _handle_failure(sync_history_id, initial_agreement_count, start_time, run_id)
         # Define Business decision to do next
         # fall back procedure
     except DatabaseError as e:

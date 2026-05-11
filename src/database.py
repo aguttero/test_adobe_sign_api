@@ -397,7 +397,7 @@ def insert_sync_history(
                 elapsed_run_time="",
                 agrmnt_range_start=range_start,
                 agrmnt_range_end=range_end,
-                agrmnts_found=0,
+                new_agrmnts=0,
                 sync_ok=False,
                 errors_found=False,
                 warnings_found=False,
@@ -416,7 +416,7 @@ def insert_sync_history(
         raise DatabaseError(f"Failed to insert SyncHistory: {e}", original_exc=e)
 
 def update_sync_history(
-    sync_id: int,
+    lookup_run_id: str,
     agreements_found: int,
     sync_ok: bool,
     elapsed_time: str,
@@ -439,13 +439,13 @@ def update_sync_history(
     """
     with _get_session() as session:
         try:
-            stmt = select(models.SyncHistory).filter_by(id=sync_id)
+            stmt = select(models.SyncHistory).filter_by(run_id=lookup_run_id)
             sync_record = session.execute(stmt).scalar_one_or_none()
 
             if sync_record:
                 sync_record.run_end_time = end_time
                 sync_record.elapsed_run_time = elapsed_time
-                sync_record.agrmnts_found = agreements_found
+                sync_record.new_agrmnts = agreements_found
                 sync_record.sync_ok = sync_ok
                 sync_record.error_qty = error_qty
                 sync_record.warning_qty = warning_qty
@@ -454,9 +454,9 @@ def update_sync_history(
                 sync_record.warnings_found = warning_qty > 0
                 sync_record.critical_found = critical_qty > 0
                 session.commit()
-                logger.debug(f"Updated SyncHistory record ID: {sync_id}")
+                logger.debug(f"Updated SyncHistory record PK_ID={sync_record.id}, run_id={sync_record.run_id} ")
             else:
-                logger.warning(f"SyncHistory record not found: {sync_id}")
+                logger.warning(f"SyncHistory record not found: {lookup_run_id}")
         except SQLAlchemyError as e:
             session.rollback()
             logger.error(f"Failed to update SyncHistory: {e}")
