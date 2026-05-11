@@ -353,6 +353,8 @@ def search_agreements_user(
         error_text = e.response.text
         if "INVALID_USER" in error_text:
             logger.warning(f"User {user_email} is invalid (INVALID_USER)")
+            # Update user status in DB Table USER
+            # CHECK Main Branch
             raise APIError(f"Invalid user: {user_email}", status_code=e.response.status_code, original_exc=e)
         
         raise APIError(f"Error searching agreements: {e.response.status_code} - {e.response.text}", status_code=e.response.status_code, original_exc=e)
