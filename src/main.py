@@ -25,9 +25,22 @@ TEST_USER_LIST_FILENAME: str = f"{SECRETS_FOLDER}test_user_list_mock_v02.txt"
 
 
 # Default date range (should be read from DB in production)
-DEFAULT_LAST_DATE_RANGE_END: str = "2020-01-01T00:00:00Z"
+DEFAULT_LAST_DATE_RANGE_END: str = "2025-11-01T00:00:00Z"
 #DEFAULT_LAST_DATE_RANGE_END: str = "2026-04-15T00:00:00Z"
-DAYS_TO_ADD_TO_RANGE: int = 365
+DAYS_TO_ADD_TO_RANGE: int = 61
+# 2020, 366 days
+days_per_year = {
+    '2020': 366,
+    '2021': 365,
+    '2022': 365,
+    '2023': 365,
+    '2024': 366,
+    '2025': 365,
+    '2026': 365,
+    '2027': 365,
+    '2028': 366
+
+}
 
 # Init Module-level logger
 logger = logging.getLogger(__name__)
@@ -257,14 +270,14 @@ def sync_agreements(date_range_start, date_range_end) -> Optional[int]:
     #for user_dict in all_valid_users[:1]:
     ### TEST CODE ###
 
-    for user_dict in all_valid_users[:1]:
+    for user_dict in all_valid_users:
         user_email = user_dict['email']
         
         ### TEST CODE ####
         # TO ASSIGN TEST USER from '.env'
-        from dotenv import dotenv_values
-        config = dotenv_values(".env")
-        user_email = config.get('TEST_DEV_USER_EMAIL2')
+        # from dotenv import dotenv_values
+        # config = dotenv_values(".env")
+        # user_email = config.get('TEST_DEV_USER_EMAIL2')
         #### TEST CODE ####
 
         user_sign_id = user_dict['adbe_sign_id']
@@ -278,7 +291,7 @@ def sync_agreements(date_range_start, date_range_end) -> Optional[int]:
 
         #### TEST CODE ####
         ## TO SAVE API DATA TO TEST
-        # with open ("src/data/api_fun_agmnt_test_api_out_v2.txt","w") as file:
+        # with open ("src/data/api_fun_agmnt_test_api_out_2022.txt","w") as file:
         #     file_content = f"{api_output}"
         #     file.write(file_content)
         # logger.debug(f"wrote test file: {len(file_content)} chars")

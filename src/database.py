@@ -20,7 +20,7 @@ def _get_engine():
     global _engine
     if _engine is None:
         DB_ENGINE_URL = "sqlite:///tests/data/test_01.db"
-        _engine = create_engine(DB_ENGINE_URL, echo=True)
+        _engine = create_engine(DB_ENGINE_URL, echo=False)
         models.Base.metadata.create_all(_engine)
         logger.debug("DB engine get or create OK")
     return _engine
