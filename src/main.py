@@ -283,11 +283,21 @@ def sync_agreements(date_range_start, date_range_end) -> Optional[int]:
         user_sign_id = user_dict['adbe_sign_id']
         
         #### TEST CODE ####
-        logger.debug(f"user_email={user_email}, user_sign_id={user_sign_id}")
+        # logger.debug(f"user_email={user_email}, user_sign_id={user_sign_id}")
         #### TEST CODE ####
         
         # SKIP API SEARCH FOR TEST
-        api_output = api.search_agreements_user(user_email, date_range_start, date_range_end)
+        try:
+            api_output = api.search_agreements_user(user_email, date_range_start, date_range_end)
+        except APIError as e:
+            # CHECK for INVALID_USER error 401
+            if "INVALID_USER" in str(e):
+                logger.debug(f"6 capturado e: {e}, str(e) = {str(e)}, stat_code={e.status_code}, original_exc={e.original_exc}")
+                logger.warning(f"7 User {user_email} is invalid - marking in DB")
+                db.update_user_status_by_email(user_email, "INVALID_USER")
+            else:
+                logger.error(f"8 API error searching agreements for {user_email}: {e}")
+            continue
 
         #### TEST CODE ####
         ## TO SAVE API DATA TO TEST
@@ -470,23 +480,23 @@ def dev_main () -> int:
 
     # EXECUTE PIPELINE STEPS
     try:
-        result_groups_sync = sync_groups()
-        logger.debug(f"Pipe 1. result_grp_sync={result_groups_sync}")
-        if not result_groups_sync:
-            logger.warning(f"Synced {result_groups_sync} groups. - exiting")
-            return 1
+        # result_groups_sync = sync_groups()
+        # logger.debug(f"Pipe 1. result_grp_sync={result_groups_sync}")
+        # if not result_groups_sync:
+        #     logger.warning(f"Synced {result_groups_sync} groups. - exiting")
+        #     return 1
         
-        result_wkflow_sync = sync_workflows()
-        logger.debug(f"Pipe 2. result_wkflow_sync={result_wkflow_sync}")
-        if not result_wkflow_sync:
-            logger.warning(f"Synced {result_wkflow_sync} groups. - exiting")
-            return 1
+        # result_wkflow_sync = sync_workflows()
+        # logger.debug(f"Pipe 2. result_wkflow_sync={result_wkflow_sync}")
+        # if not result_wkflow_sync:
+        #     logger.warning(f"Synced {result_wkflow_sync} groups. - exiting")
+        #     return 1
 
-        result_users_sync = sync_users()
-        logger.debug(f"Pipe 3. result_user_sync={result_users_sync}")
-        if not result_users_sync:
-           logger.warning(f"Synced {result_users_sync} users. - exiting")
-           return 1
+        # result_users_sync = sync_users()
+        # logger.debug(f"Pipe 3. result_user_sync={result_users_sync}")
+        # if not result_users_sync:
+        #    logger.warning(f"Synced {result_users_sync} users. - exiting")
+        #    return 1
         
         result_agreement_sync = sync_agreements(date_range_start,date_range_end)
         logger.debug(f"Pipe 4. result_agreement_sync={result_agreement_sync}")

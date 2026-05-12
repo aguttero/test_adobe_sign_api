@@ -230,6 +230,7 @@ def search_agreements_user(
 
     Raises:
         APIError: If the API call fails.
+        Warning if API returns 401 error INVALID_USER
     """
     all_agreements: List[dict] = []
     next_index: Optional[int] = None
@@ -347,20 +348,18 @@ def search_agreements_user(
                 break
 
     except requests.exceptions.HTTPError as e:
-        logger.error(f"Error searching agreements: {e.response.status_code} - {e.response.text}")
+        logger.error(f"0 Error searching agreements: {e.response.status_code} - {e.response.text}")
         
         # Check for INVALID_USER error (401)
         error_text = e.response.text
         if "INVALID_USER" in error_text:
-            logger.warning(f"User {user_email} is invalid (INVALID_USER)")
-            # Update user status in DB Table USER
-            # CHECK Main Branch
-            raise APIError(f"Invalid user: {user_email}", status_code=e.response.status_code, original_exc=e)
-        
-        raise APIError(f"Error searching agreements: {e.response.status_code} - {e.response.text}", status_code=e.response.status_code, original_exc=e)
+            logger.debug(f"1 User {user_email} is invalid: (INVALID_USER)")
+            raise APIError(f"2 API ERROR INVALID_USER: {user_email}", status_code=e.response.status_code, original_exc=e)
+        else:
+            raise APIError(f"3 API Error searching agreements: {e.response.status_code} - {e.response.text}", status_code=e.response.status_code, original_exc=e)
     except requests.exceptions.RequestException as e:
-        logger.error(f"Error searching agreements: {e}")
-        raise APIError(f"Error searching agreements: {e}", original_exc=e)
+        logger.error(f"4 API ERROR searching agreements: {e}")
+        raise APIError(f"5 API ERROR searching agreements: {e}", original_exc=e)
 
     logger.debug(f"Found {len(all_agreements)} agreements for {user_email}")
     return all_agreements

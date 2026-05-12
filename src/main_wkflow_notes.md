@@ -60,6 +60,8 @@ TODO crear funcion upsert Users
             * get token manager
             * user_instance = db.get_user_by_email(user_email)
             * insert_result = db.insert_agreements(api_output,user_instance.id)
+   
+
     BUG fix counter tot user, users with new agreements, users without new agreements
     TODO separate with parsers from api output to DB injection
 
@@ -89,13 +91,10 @@ TODO IMPORTANT define how to calculate overall_ok flag for sync
 TODO pass the qty of new users, new agreements, new wkflows, new_groups
 
 ## FIX DB Sync close
+TODO create a CLOSE record when main exits because of error
 
 ## DELETE Unused functions
 ## UPDATE Agents.md
-    
-# DEBUG
-## SyncHistory star and end time
-
 
 
 IA TOKENS:
