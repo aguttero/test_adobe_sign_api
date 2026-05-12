@@ -301,7 +301,7 @@ def sync_agreements(date_range_start, date_range_end) -> Optional[int]:
 
         #### TEST CODE ####
         ## TO SAVE API DATA TO TEST
-        # with open ("src/data/api_fun_agmnt_test_api_out_2022.txt","w") as file:
+        # with open ("src/data/api_fun_agmnt_test_api_out_0512_01.txt","w") as file:
         #     file_content = f"{api_output}"
         #     file.write(file_content)
         # logger.debug(f"wrote test file: {len(file_content)} chars")

@@ -258,7 +258,7 @@ def search_agreements_user(
                 },
                 "startIndex": 0,
                 "pageSize": 100,
-                "status": ["SIGNED"],
+                "status": ["SIGNED","APPROVED"],
                 "sortByField": "CREATED_DATE",
                 "sortOrder": "ASC"
             }
@@ -287,14 +287,21 @@ def search_agreements_user(
                 participant_list = agreement.get("participantList", [])
 
                 # Handle case when owner is also a signer/form filler (no participantList returned)
-                # This happens when agreement has SENDER + SIGNER or SENDER + FORM_FILLER roles
+                # This happens when agreement has SENDER + SIGNER or SENDER + FORM_FILLER or SENDER + APPROVER roles
                 owner_roles = agreement.get("role", [])
+                ### TEST CODE ###
+                logger.debug(f"owner_roles={owner_roles}")
+                ### TEST CODE ###
                 is_owner_also_signer = "SIGNER" in owner_roles and "SENDER" in owner_roles
                 is_owner_also_form_filler = "FORM_FILLER" in owner_roles and "SENDER" in owner_roles
+                is_owner_also_approver = "APPROVER" in owner_roles and "SENDER" in owner_roles
+                ### TEST CODE ###
+                logger.debug(f"is_owner_also_approver={is_owner_also_approver}")
+                ### TEST CODE ###
 
                 if is_owner_also_signer and not participant_list:
                     # Owner is also a signer - add them as a signer manually
-                    logger.debug(f"Owner {user_email} is also a signer for agreement {agreement.get('id')}")
+                    logger.debug(f"Sender {user_email} is also a signer for agreement {agreement.get('id')}")
                     signers.append({
                         "signer_email": user_email,
                         "signer_full_name": "",  # Owner full name not in response
@@ -302,12 +309,40 @@ def search_agreements_user(
                     })
                 elif is_owner_also_form_filler and not participant_list:
                     # Owner is also a form filler - add them as a signer manually
-                    logger.debug(f"Owner {user_email} is also a form filler for agreement {agreement.get('id')}")
+                    logger.debug(f"Sender {user_email} is also a form filler for agreement {agreement.get('id')}")
                     signers.append({
                         "signer_email": user_email,
                         "signer_full_name": "",  # Owner full name not in response
                         "signer_role": "FORM_FILLER"
                     })
+                elif is_owner_also_approver and not participant_list:
+                    # Owner is also an approver - add them as a signer manually
+                    logger.debug(f"Sender {user_email} is also an approver for agreement {agreement.get('id')}")
+                    signers.append({
+                        "signer_email": user_email,
+                        "signer_full_name": "",  # Owner full name not in response
+                        "signer_role": "APPROVER"
+                    })
+                elif is_owner_also_approver and participant_list:
+                    # Owner is also an approver, there is a participant list - add them as a signer manually
+                    logger.debug(f"Sender {user_email} is also an approver for agreement {agreement.get('id')}")
+                    signers.append({
+                        "signer_email": user_email,
+                        "signer_full_name": "",  # Owner full name not in response
+                        "signer_role": "APPROVER"
+                    })
+                    # REFACTOR THIS CODE TO ALLOW FOR BETTER EXCEPTION HANDLING...
+                    # FIX IDEA: DRAW CASES in MATRIX AND FLOW
+                    for participant in participant_list:
+                        roles = participant.get("role", [])
+                        # Check if participant has SIGNER, APPROVER, or FORM_FILLER role
+                        if any(role in SIGNER_ROLES for role in roles):
+                            signers.append({
+                                "signer_email": participant.get("email", ""),
+                                "signer_full_name": participant.get("fullName", ""),
+                                "signer_role": roles[0] if roles else ""
+                            })
+
                 else:
                     # Normal case - extract signers from participantList
                     for participant in participant_list:

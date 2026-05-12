@@ -52,7 +52,7 @@ TODO crear funcion upsert Users
 
 
 ## Sync Agreements
-## Updates agreements for valid users in given date range
+## Updates agreements for valid users in given CREATED_DATE date range
 * sync_agreements()
     * db.get_all_users(exclude_status="INVALID_USER") var: all_valid_users
     * for each user:
@@ -60,7 +60,11 @@ TODO crear funcion upsert Users
             * get token manager
             * user_instance = db.get_user_by_email(user_email)
             * insert_result = db.insert_agreements(api_output,user_instance.id)
-   
+   BUG FIXED? fix case where sender role is SENDER and APPROVER - load the sender to the signers table as approver.
+   BUG TEST for Approver and no participant list case - search for agreements with no signers in SQL
+   BUG find a way to define active users and invalid users
+
+TODO add last_sync_date to Agreements and Signers tables 
 
     BUG fix counter tot user, users with new agreements, users without new agreements
     TODO separate with parsers from api output to DB injection
@@ -72,7 +76,7 @@ TODO crear funcion upsert Users
 TODO Define how this flag updates
 
 
-## Finalize
+## Finalize STAGE
 ### Calculate elapsed time
 * utils.get_current_timestamp() OK same func as start_time
 * utils.calculate_elapsed_time(start_time, end_time)
@@ -95,6 +99,12 @@ TODO create a CLOSE record when main exits because of error
 
 ## DELETE Unused functions
 ## UPDATE Agents.md
+
+# 0512 WORK PRIORITY
+* validate JAD agreements vs JAD report 2025 NOV DEC
+* download JADs - create SSD
+* review how to automate image adaptation workflow
+
 
 
 IA TOKENS:
