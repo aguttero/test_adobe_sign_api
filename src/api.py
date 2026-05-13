@@ -398,3 +398,53 @@ def search_agreements_user(
 
     logger.debug(f"Found {len(all_agreements)} agreements for {user_email}")
     return all_agreements
+
+def download_agreemnt(agreement_id):
+    """downloads agreement and audit trail from Adobe Sign API.
+    
+    Returns:
+        ?? path to downloaded document?
+        
+    Raises:
+        APIError: If the API call fails.
+    """
+    all_workflows: List[dict] = []
+    cursor: Optional[str] = None
+    token: str = get_token_manager().get_token()
+
+    endpoint: str = FETCH_WORKFLOWS_ENDPOINT
+    logger.info(f"Fetching workflows from {endpoint}")
+
+    headers: dict = {
+        'Authorization': f"Bearer {token}"
+    }
+    parameters: dict = {
+        'cursor': None
+    }
+
+    try:
+        while True:
+            if cursor:
+                parameters['cursor'] = cursor
+
+            api_response = requests.get(endpoint, headers=headers, params=parameters)
+            api_response.raise_for_status()
+
+            response_data = api_response.json()
+            all_workflows.extend(response_data.get('userWorkflowList', []))
+
+            cursor = response_data.get('pageInfo', {}).get('nextCursor')
+
+            if not cursor:
+                logger.debug("No more cursor for workflows")
+                break
+
+    except requests.exceptions.HTTPError as e:
+        logger.error(f"Error fetching workflows: {e.response.status_code} - {e.response.text}")
+        raise APIError(f"Error fetching workflows: {e.response.status_code} - {e.response.text}", status_code=e.response.status_code, original_exc=e)
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error fetching workflows: {e}")
+        raise APIError(f"Error fetching workflows: {e}", original_exc=e)
+
+    logger.info(f"Fetched {len(all_workflows)} workflows")
+    return all_workflows

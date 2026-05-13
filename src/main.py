@@ -541,6 +541,20 @@ def dev_main () -> int:
         except Exception as e:
             logger.warning(f"Failed to update sync history: {e}")
         
+
+        # DOWNLOAD a document
+        
+        ### TEST CODE 1 ###
+        from dotenv import dotenv_values
+        config = dotenv_values(".env")
+        target_agreement_id = config.get("TEST_AGREEMENT_ID_01")
+        ### TEST CODE 1 ###
+
+        donwload_path = api.download_agreement(target_agreement_id)
+
+
+
+
         logger.info(f"Main execution completed. Overall status: {'Success' if overall_sync_ok else 'Failed'}")
         logger.info(f"End time: {end_time_str}")
         logger.info(f"Elapsed time: {elapsed_str}")
