@@ -8,8 +8,3 @@ __pycache__/
 *.log
 *.db
 agents/
-
-# tests
-tests/bkup0420/
-tests/bkup*/
-bkup/
