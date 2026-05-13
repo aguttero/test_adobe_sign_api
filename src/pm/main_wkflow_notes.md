@@ -1,0 +1,124 @@
+
+# Main () Workflow
+## Init Logger config and run and time stamps
+* logger tested OK -> need to run first: line 33 logger = logging.getLogger(__name__)
+* def initialize_app() -> Triggers logging configuration OK
+
+## Prepare the date range for the sync process
+* prepare_date_range - OK
+
+## Insert SyncHistory record at the start of the run
+* db.insert_sync_history OK
+
+## Get initial agreement count for rollback tracking
+* db.get_agreement_count() OK
+
+## Sync Groups
+## Updates all groups
+* sync_groups() ok
+    * api.fetch_all_groups()
+        * get_token_manager().get_token()
+    * models.parse_groups(api_list)
+        * convert_to_sqlite_date
+    *db.upsert_groups(parsed_groups) (session.merge)
+
+
+TODO Revisar y definir jerarquia de error handling
+TODO Agregar error handling a las funciones que no tienen
+TODO Refator _get_token_manager que está en API . y refresh TOKEN que llama a API desde AUTH
+
+## Sync Workflows
+* sync_workflows
+    * api.fetch_all_workflows()
+        * get_token_manager().get_token()
+    * models.parse_workflows(api_workflow_list)
+    * db.upsert_workflows(parsed_workflows)
+    
+
+## Sync Users
+## Updates all users
+* sync_users()
+    * api.fetch_all_users() -> List DICT
+    * db.transform_user_list_keys(api_user_list)
+    TODO Parse users en Models (igual que groups)
+    * db.insert_new_items_by_email_key(transformed_user_list)
+        * db.get_existing_emails() existing_emails
+        * db.filter_new_users (existing_emails)
+        * db.bulk_insert_list (new_users_list)
+TODO Revisar y definir jerarquia de error handling
+TODO Agregar error handling a las funciones que no tienen
+TODO Revisar logica de usuarios archivados de Adobe Sign
+TODO crear funcion upsert Users
+
+
+## Sync Agreements
+## Updates agreements for valid users in given CREATED_DATE date range
+* sync_agreements()
+    * db.get_all_users(exclude_status="INVALID_USER") var: all_valid_users
+    * for each user:
+        * api.search_agreements_user(x,y,z) var: api_output
+            * get token manager
+            * user_instance = db.get_user_by_email(user_email)
+            * insert_result = db.insert_agreements(api_output,user_instance.id)
+   BUG FIXED? fix case where sender role is SENDER and APPROVER - load the sender to the signers table as approver.
+   BUG TEST for Approver and no participant list case - search for agreements with no signers in SQL
+   BUG find a way to define active users and invalid users
+
+TODO add last_sync_date to Agreements and Signers tables 
+
+    BUG fix counter tot user, users with new agreements, users without new agreements
+    TODO separate with parsers from api output to DB injection
+
+    TODO low priority review issue with old users, old groups, old workflows
+    TODO low priority optimize with prefetch para agreements existentes db.insert_agreements
+
+## OVERAL SYNC STATUS
+TODO Define how this flag updates
+
+
+## Finalize STAGE
+### Calculate elapsed time
+* utils.get_current_timestamp() OK same func as start_time
+* utils.calculate_elapsed_time(start_time, end_time)
+* utils.format_elapsed_time(hours, minutes, seconds)
+
+### Get final agreement count
+* db.get_agreement_count() ok same as used to get initial count
+
+### Update SyncHistory with overall success status
+* log_lines = monitor.read_recent_log_lines(log_file_path)
+* log_counts = monitor.count_log_records_by_level(log_lines)
+TODO Review and verify monitor.py functions
+
+* db.update_sync_history
+TODO IMPORTANT define how to calculate overall_ok flag for sync
+TODO pass the qty of new users, new agreements, new wkflows, new_groups
+
+## FIX DB Sync close
+TODO create a CLOSE record when main exits because of error
+
+## DELETE Unused functions
+## UPDATE Agents.md
+
+# 0512 WORK PRIORITY
+* validate JAD agreements vs JAD report 2025 NOV DEC
+* download JADs - create SSD
+* review how to automate image adaptation workflow
+
+
+
+IA TOKENS:
+TODO Context Caching
+TODO Two-tier routing
+TODO Batch processing -> Documentation 50% discount
+
+* sync_agreements()
+    db.get all valid users
+    for each user
+        search agreement
+            if user invalid
+                update db user status
+        transform
+        persist agreements
+            normalize
+            persist signers
