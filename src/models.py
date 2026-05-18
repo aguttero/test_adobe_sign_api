@@ -1,4 +1,5 @@
 #from datetime import date
+import re
 from typing import List, Optional
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.orm import DeclarativeBase
@@ -145,6 +146,8 @@ class Agreement(Base):
     signers: Mapped[List["AgreementSigner"]] = relationship(
         back_populates="agreement",
         cascade="all, delete-orphan")
+    # Document donwload relationship
+    document: Mapped["Document"] = relationship(back_populates="agreement")
 
     def __repr__(self) -> str:
         return f"Agreement(name={self.name!r}, status={self.status!r}, created_date={self.created_date!r}, id={self.id!r})"
@@ -162,6 +165,26 @@ class DocFieldContent(Base):
     
     def __repr__(self) -> str:
         return f"DocFieldContent(pk_id={self.id!r}, fk_id={self.agreement_id!r})"
+
+class Document(Base):
+    """Downloaded document information table"""
+    __tablename__ = "document"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    agreement_id: Mapped[int] = mapped_column(ForeignKey("agreement.id"))
+    agreemen_type: Mapped [str] # JAD CONTRATO OTRO
+    file_path: Mapped[Optional[str]]
+    file_size_bytes: Mapped[Optional[int]]
+    downloaded_ts: Mapped[Optional[str]]
+    parse_status: Mapped[Optional[str]]
+    parsed_ts: Mapped[Optional[str]]
+    error_message: Mapped[Optional[str]]
+
+    agreement: Mapped["Agreement"] = relationship(back_populates="document")
+    
+    def __repr__(self) -> str:
+        return f"Document(pk_id={self.id!r}, fk_id={self.agreement_id!r}, file_path={self.file_path!r})"
+
 
 def parse_agreements_v1(api_agreement_data: List[dict], group_pk_lookup: dict[str,int]) -> List[Agreement]:
     """Parses raw API response into typed Agreement instances. Uses the group_pk_lookup dict to assign the correct group_id_ref value to Agreement instance"""

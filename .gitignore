@@ -1,10 +1,27 @@
-.venv/
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# General
 .DS_Store
+
+# Env and Credentials
 .env
 client_secret/
+
+# Data
+storage/
 data/
 logs/
-__pycache__/
 *.log
 *.db
+
+# AI Agents
 agents/

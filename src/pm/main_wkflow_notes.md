@@ -97,6 +97,25 @@ TODO pass the qty of new users, new agreements, new wkflows, new_groups
 ## FIX DB Sync close
 TODO create a CLOSE record when main exits because of error
 
+## DOWNLOAD STAGE
+TODO * fetch from DB new JAD agreement_id list
+TODO * Iterate JAD list
+        * download JAD from API
+        * download function with temp download
+        * validate download ok
+        * atomic move file
+        * create timestamp
+        * download audit trail separate? 
+        * store in local file
+        * add to DB index
+     * Validate list length vs downloaddsd docs
+
+
+
+
+
+
+
 ## DELETE Unused functions
 ## UPDATE Agents.md
 

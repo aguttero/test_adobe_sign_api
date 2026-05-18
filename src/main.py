@@ -42,6 +42,11 @@ days_per_year = {
 
 }
 
+# Storage Locations
+JAD_PATH = "storage/jad/"
+CONTRACT_PATH = "storage/contract/"
+
+
 # Init Module-level logger
 logger = logging.getLogger(__name__)
 now = datetime.now()
@@ -330,6 +335,43 @@ def sync_agreements(date_range_start, date_range_end) -> Optional[int]:
     return 999 # qty of new persisted agreements
 
 
+def download_documents(agreement_type:str):
+    """
+    Downloads documents from api, saves to local storage and persists into database
+    Returns: quantity of pdf documents stored
+    Raises?
+    """
+
+    ### TEST CODE 1 ###
+    from dotenv import dotenv_values
+    config = dotenv_values(".env")
+    target_agreement_id = config.get("TEST_AGREEMENT_ID_01")
+    agreement_type = "JAD"
+    ### TEST CODE 1 ###
+
+    counter = 0
+    api_pdf_bytes = api.download_agreement(target_agreement_id)
+    
+    # descargar file y Audit trail por separado
+    # agregar a la tabla path del audit trail
+
+    # Save PDF to file
+    # Validate file does not exist
+    # if target_file_path.exists():
+    # logger.info("file already donwloaded")
+    # return algo (target_file_path?)
+    
+    target_file_path = f"{JAD_PATH}{target_agreement_id}.pdf"
+    with open(target_file_path,"wb") as file:
+        file.write(api_pdf_bytes)
+    logger.debug(f"Saved to local file agreement_id: {target_agreement_id}.pdf")
+
+    # Validate file was saved ok before creating the index
+
+    # db.update_db_storage_index(target_file_path,agreement_type,target_agreement_id)
+    counter +=1
+
+    return counter    
 
 
 def main() -> int:
@@ -480,29 +522,33 @@ def dev_main () -> int:
 
     # EXECUTE PIPELINE STEPS
     try:
+        # GROUP SYNC
         # result_groups_sync = sync_groups()
         # logger.debug(f"Pipe 1. result_grp_sync={result_groups_sync}")
         # if not result_groups_sync:
         #     logger.warning(f"Synced {result_groups_sync} groups. - exiting")
         #     return 1
         
+        # WORKFLOW SYNC
         # result_wkflow_sync = sync_workflows()
         # logger.debug(f"Pipe 2. result_wkflow_sync={result_wkflow_sync}")
         # if not result_wkflow_sync:
         #     logger.warning(f"Synced {result_wkflow_sync} groups. - exiting")
         #     return 1
 
+        # USER SYNC
         # result_users_sync = sync_users()
         # logger.debug(f"Pipe 3. result_user_sync={result_users_sync}")
         # if not result_users_sync:
         #    logger.warning(f"Synced {result_users_sync} users. - exiting")
         #    return 1
         
-        result_agreement_sync = sync_agreements(date_range_start,date_range_end)
-        logger.debug(f"Pipe 4. result_agreement_sync={result_agreement_sync}")
-        if not result_agreement_sync:
-            logger.warning(f"Synced {result_agreement_sync} groups. - exiting")
-            return 1
+        # AGREEMENT SYNC
+        # result_agreement_sync = sync_agreements(date_range_start,date_range_end)
+        # logger.debug(f"Pipe 4. result_agreement_sync={result_agreement_sync}")
+        # if not result_agreement_sync:
+        #     logger.warning(f"Synced {result_agreement_sync} groups. - exiting")
+        #     return 1
 
         # Determine overall success status based on individual step statuses
         overall_sync_ok = True
@@ -511,7 +557,7 @@ def dev_main () -> int:
         #                    agreement_sync_status == 0)
 
 
-        # FINALIZE
+        # UPDATE AND CLOSE DB SYNC TABLE
         # Calculate elapsed time
         end_time: datetime = utils.get_current_timestamp()
         hours, minutes, seconds = utils.calculate_elapsed_time(start_time, end_time)
@@ -542,19 +588,18 @@ def dev_main () -> int:
             logger.warning(f"Failed to update sync history: {e}")
         
 
-        # DOWNLOAD a document
+        ### DOWNLOAD STAGE #####
+
+        # fetch from DB new JAD agreement_id List
+        # Loop JADS
+
+        agreement_type = "JAD"
+        result = download_documents(agreement_type)
+        # Validar si se guardaron todos o menos de los que encontrados
+        # levantar error o warning
+        logger.info(f"Downloaded {result} documents out of xx in the list")
+
         
-        ### TEST CODE 1 ###
-        from dotenv import dotenv_values
-        config = dotenv_values(".env")
-        target_agreement_id = config.get("TEST_AGREEMENT_ID_01")
-        ### TEST CODE 1 ###
-
-        donwload_path = api.download_agreement(target_agreement_id)
-
-
-
-
         logger.info(f"Main execution completed. Overall status: {'Success' if overall_sync_ok else 'Failed'}")
         logger.info(f"End time: {end_time_str}")
         logger.info(f"Elapsed time: {elapsed_str}")
