@@ -110,6 +110,19 @@ TODO * Iterate JAD list
         * add to DB index
      * Validate list length vs downloaddsd docs
 
+## MVP DOWNLOAD STAGE
+TODO * fetch from DB new JAD agreement_id list
+TODO * Iterate JAD list
+    * download JAD from API
+    * store in locl file
+    * add to DB index
+    * mark status as downloaded
+    * parse agreement
+    * add JAD data points to Table
+    * add approvers data points to table
+    * add approved date to table
+    * generate CSV / excel
+
 
 
 
