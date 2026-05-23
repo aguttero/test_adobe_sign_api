@@ -1,3 +1,4 @@
+from ast import Return
 import logging
 from datetime import date, datetime
 from typing import List, Optional, Type, Dict, Any
@@ -644,15 +645,24 @@ def upsert_workflows(wkflow_list: List[models.Workflow]) -> None:
         raise DatabaseError(f"DB ERROR: Failed to upsert workflow: {e}", original_exc=e)
     logger.debug(f"{summary}")
 
+def fetch_agrmnt_by_wkflow(start_date, end_date, target_wf:list)->list:
+    """Fetch agreements in daterange that belong to the target workflow list in the database.
+        Workflow id provided matches worflow pk_id in Workflow table
+    
+    Returns:
+        List of agreements identified by Adobe Sign server agreement_id
+    """
+    with _get_session() as session:
+            stmt = select(models.Agreement.agreement_id).where(models.Agreement.workflow_id_ref.in_(target_wf))
+            # stmt = select(models.Agreement.agreement_id).where(models.Agreement.workflow_id_ref.between(5,6))
+            # stmt = select(models.Agreement.agreement_id).where(models.Agreement.workflow_id_ref == 5)
+            result = session.execute(stmt).scalars().all()
+            logger.debug (f"result_type= {type(result)} - result= {result}")
+    logger.debug(f"Fetched Agreement ids. Agreement count: {len(result)}")
+    return result
 
-# def get_workflow_by_api_id(api_workflow_id: str) -> Optional[models.Workflow]:
-#     """Gets a workflow from the database by its API ID."""
-#     pass
-# 
-# def upsert_workflows(workflows: List[models.Workflow]) -> None:
-#     """Upserts a list of workflows into the database."""
-#     pass
 
+# CREATED BY GEMINI - REVIEW
 def get_all_agreements_for_export() -> List[Dict[str, Any]]:
     """Fetches all agreements with related user, group, signers, and doc fields for export.
 

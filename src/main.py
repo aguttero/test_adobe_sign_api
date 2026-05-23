@@ -335,36 +335,44 @@ def sync_agreements(date_range_start, date_range_end) -> Optional[int]:
     return 999 # qty of new persisted agreements
 
 
-def download_documents(agreement_type:str):
+def download_documents(date_range_start, date_range_end, agreement_type:str):
     """
     Downloads documents from api, saves to local storage and persists into database
     Returns: quantity of pdf documents stored
     Raises?
     """
+    logger.debug(f"date_range_start= {date_range_start!r}, date_range_end= {date_range_end!r}")
 
     ### TEST CODE 1 ###
-    from dotenv import dotenv_values
-    config = dotenv_values(".env")
-    target_agreement_id = config.get("TEST_AGREEMENT_ID_01")
-    agreement_type = "JAD"
+    # from dotenv import dotenv_values
+    # config = dotenv_values(".env")
+    # target_agreement_id = config.get("TEST_AGREEMENT_ID_01")
+    # agreement_type = "JAD"
     ### TEST CODE 1 ###
+
+    # FETCH FROM DB
+    # Obtain list of agreements id to download from API
+    target_wkflow_list = [5] # WFs 5,6 carry JAD process 
+    # target_wkflow_list = [5,6] # WFs 5,6 carry JAD process 
+    target_agreement_list = db.fetch_agrmnt_by_wkflow(date_range_start, date_range_end, target_wkflow_list)
+
 
     counter = 0
-    api_pdf_bytes = api.download_agreement(target_agreement_id)
+    # api_pdf_bytes = api.download_agreement(target_agreement_id)
     
     # descargar file y Audit trail por separado
     # agregar a la tabla path del audit trail
 
-    # Save PDF to file
+    # SAVE PDF TO FILE
     # Validate file does not exist
     # if target_file_path.exists():
     # logger.info("file already donwloaded")
     # return algo (target_file_path?)
     
-    target_file_path = f"{JAD_PATH}{target_agreement_id}.pdf"
-    with open(target_file_path,"wb") as file:
-        file.write(api_pdf_bytes)
-    logger.debug(f"Saved to local file agreement_id: {target_agreement_id}.pdf")
+    # target_file_path = f"{JAD_PATH}{target_agreement_id}.pdf"
+    # with open(target_file_path,"wb") as file:
+    #     file.write(api_pdf_bytes)
+    # logger.debug(f"Saved to local file agreement_id: {target_agreement_id}.pdf")
 
     # Validate file was saved ok before creating the index
 
@@ -550,12 +558,31 @@ def dev_main () -> int:
         #     logger.warning(f"Synced {result_agreement_sync} groups. - exiting")
         #     return 1
 
+
+        ### DOWNLOAD STAGE #####
+        # ----- DOWNLOAD STEP
+        # Search for JADs in DB, download, verify and index
+
+        agreement_type = "JAD"
+        agreements_found = download_documents(date_range_start, date_range_end, agreement_type)
+        # Validar si se guardaron todos o menos de los que encontrados
+        # levantar error o warning
+        logger.info(f"Downloaded {agreements_found} documents out of xx in the list")
+
+
+
+        # ----- PARSE STEP
+        # fetch from DB new JAD agreement_id List
+        # Loop JADS
+
+        
+
+        # ------- FINAL VALIDATION AND CLOSE STEP
         # Determine overall success status based on individual step statuses
         overall_sync_ok = True
         # overall_sync_ok = (group_sync_status == 0 and 
         #                    user_sync_status == 0 and 
         #                    agreement_sync_status == 0)
-
 
         # UPDATE AND CLOSE DB SYNC TABLE
         # Calculate elapsed time
@@ -586,19 +613,6 @@ def dev_main () -> int:
             )
         except Exception as e:
             logger.warning(f"Failed to update sync history: {e}")
-        
-
-        ### DOWNLOAD STAGE #####
-
-        # fetch from DB new JAD agreement_id List
-        # Loop JADS
-
-        agreement_type = "JAD"
-        result = download_documents(agreement_type)
-        # Validar si se guardaron todos o menos de los que encontrados
-        # levantar error o warning
-        logger.info(f"Downloaded {result} documents out of xx in the list")
-
         
         logger.info(f"Main execution completed. Overall status: {'Success' if overall_sync_ok else 'Failed'}")
         logger.info(f"End time: {end_time_str}")
