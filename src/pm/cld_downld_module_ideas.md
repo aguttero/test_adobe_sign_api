@@ -93,7 +93,7 @@ Perfect — no OCR needed, and structured field extraction is a well-solved prob
 ---
 
 ## Platform recommendation: Python + `pdfplumber` + Claude API
-
+## AG: TEST FAILED ON PDFPLUMBER
 For digitally created PDFs with selectable text, the right stack is:
 
 - **`pdfplumber`** for text and table extraction (better than `PyPDF2` or `pdfminer` for structured content — it preserves layout geometry and can extract tables natively)
@@ -1110,3 +1110,602 @@ label = key.replace("seccion_", "").replace("_", " ").upper()
 ```
 
 And update the segment key references in `score_confidence` accordingly — since it passes the full `segments` dict as JSON, no other change is needed there.
+
+__
+## AG QUESTION PERSIST STRATEGY:
+Does it make sense to create a separate table to store downloaded document paths? Should I add these fields to the existing agreemt table? what are the pros and cons?
+
+___
+Good design question. Here is a direct analysis.
+
+---
+
+## Option A — Separate `documents` table
+
+```sql
+CREATE TABLE documents (
+    agreement_id     TEXT PRIMARY KEY,
+    agreement_type   TEXT,
+    file_path        TEXT,
+    file_size_bytes  INTEGER,
+    downloaded_at    TEXT,
+    parse_status     TEXT,
+    parsed_at        TEXT,
+    FOREIGN KEY (agreement_id) REFERENCES agreements(agreement_id)
+);
+```
+
+**Pros**
+- The `agreements` table stays focused on API metadata. The `documents` table owns the file lifecycle. Each table has one clear responsibility.
+- You can have agreements with no downloaded document (not all agreements need parsing — only purchase orders, contracts, and authorizations). A separate table means no nullable columns on the main table for records that will never have a file.
+- Parse status and file path are operationally different from agreement metadata — they change frequently during processing while agreement fields are stable after sync. Separating them avoids touching the main table during parse runs.
+- Easier to drop and rebuild the documents table if you change your storage strategy without affecting the agreements table.
+- If you later add multiple documents per agreement (e.g. individual participant documents in addition to the combined PDF), the table extends naturally with a composite key.
+
+**Cons**
+- Every query that needs both agreement metadata and file path requires a JOIN.
+- One more table to manage.
+
+---
+
+## Option B — Add columns to `agreements`
+
+```sql
+ALTER TABLE agreements ADD COLUMN file_path        TEXT;
+ALTER TABLE agreements ADD COLUMN file_size_bytes  INTEGER;
+ALTER TABLE agreements ADD COLUMN downloaded_at    TEXT;
+ALTER TABLE agreements ADD COLUMN parse_status     TEXT;
+ALTER TABLE agreements ADD COLUMN parsed_at        TEXT;
+```
+
+**Pros**
+- Simpler — everything about an agreement in one place.
+- No JOIN needed for the common case of "give me this agreement and its file path."
+
+**Cons**
+- Most rows will have null file columns permanently — you are only downloading 3 of however many agreement types exist in the account.
+- The `agreements` table is populated by the sync pipeline and the file columns are populated by the download pipeline. Two different processes writing to the same table creates contention and makes it harder to reason about what each pipeline owns.
+- `parse_status` is a processing concern, not an agreement property. Mixing processing state into a data table is a design smell that tends to accumulate over time — you end up adding `retry_count`, `error_message`, `last_attempt_at` and the table becomes a job queue hybrid.
+
+---
+
+## Recommendation
+
+**Keep them separate.** The deciding factor for your specific case is that only a subset of agreements will ever have documents — the three agreement types you are parsing. Adding file columns to the main table means the majority of rows carry permanent nulls for those columns, which is a signal that the data does not belong there.
+
+The JOIN cost is negligible for SQLite at your scale, and the operational clarity of having the sync pipeline own `agreements` and the download pipeline own `documents` is worth it. The schema you already have in the module is correct as designed.
+
+The one refinement worth making to the existing `documents` table is adding an `error_message` column so failed downloads have their reason recorded without needing the `error_log` table for that:
+
+```sql
+CREATE TABLE IF NOT EXISTS documents (
+    agreement_id      TEXT PRIMARY KEY,
+    agreement_type    TEXT NOT NULL,
+    file_path         TEXT,
+    file_size_bytes   INTEGER,
+    downloaded_at     TEXT,
+    parse_status      TEXT CHECK(parse_status IN ('pending','success','failed')),
+    parsed_at         TEXT,
+    error_message     TEXT,
+    FOREIGN KEY (agreement_id) REFERENCES agreements(agreement_id)
+);
+```
+## AG QUESTION
+and  where should i store the parsed fields of the documents?
+___
+Same logic applies — separate tables, one per agreement type. You already have this in the module (`parsed_contracts`, `parsed_purchase_orders`, `parsed_authorizations`), and it is the right call. Here is the reasoning laid out explicitly.
+
+---
+
+## Why separate parsed tables, not columns on `agreements` or `documents`
+
+**The fields are completely different per type.** A purchase order has `po_number`, `line_items`, `delivery_date`. A contract has `exit_clause_summary`, `auto_renewal_trigger_date`, `governing_law`. There is no meaningful overlap. Putting them all in one table means either dozens of nullable columns or a generic key-value store — both are worse than three clean tables.
+
+**The parsing pipeline owns these tables exclusively.** Nothing else writes to them. That clean ownership boundary is the same argument as separating `documents` from `agreements`.
+
+**Querying stays simple.** When you want all contracts expiring in the next 90 days you query `parsed_contracts` directly — no joins to `agreements` needed for the parsed fields themselves. You only join when you need the sender or agreement metadata alongside the parsed content.
+
+**Schema evolution is isolated.** When you discover a new field to extract from contracts — say `payment_terms` or `penalty_cap` — you add a column to `parsed_contracts` without touching anything else.
+
+---
+
+## The full table relationship
+
+This is how all the tables relate to each other:
+
+```
+agreements  (sync pipeline owns this)
+    │
+    ├── documents  (download pipeline owns this)
+    │
+    ├── parsed_contracts       (parse pipeline owns this)
+    ├── parsed_purchase_orders (parse pipeline owns this)
+    └── parsed_authorizations  (parse pipeline owns this)
+```
+
+Every table hangs off `agreements.agreement_id` as the primary key and foreign key. That single ID is the thread connecting all layers — API metadata, file on disk, and extracted fields.
+
+---
+
+## The one alternative worth considering
+
+If you anticipate adding many more agreement types over time, a **single `parsed_fields` EAV table** (Entity-Attribute-Value) avoids creating a new table per type:
+
+```sql
+CREATE TABLE parsed_fields (
+    agreement_id    TEXT NOT NULL,
+    field_name      TEXT NOT NULL,
+    field_value     TEXT,
+    confidence      TEXT,
+    PRIMARY KEY (agreement_id, field_name),
+    FOREIGN KEY (agreement_id) REFERENCES agreements(agreement_id)
+);
+```
+
+**Do not use this.** EAV is tempting for flexibility but makes every meaningful query painful — getting a full contract record requires pivoting dozens of rows into columns. Type safety disappears. Aggregations like `SUM(total_value)` become string-cast gymnastics. It is the right structure only for truly dynamic, unpredictable schemas. Your schema is well-defined per type, so typed tables are strictly better.
+
+---
+
+## Verdict
+
+What you already have in the module is correct. Three typed parsed tables, each with a foreign key to `agreements`, each owned exclusively by the parse pipeline. No changes needed.
+__
+## AG QUESTION
+in the documents table what is the purpose for downloaded_at and parsed_at status?
+__
+
+They track two different lifecycle events that happen at different times and can fail independently.
+
+---
+
+## `downloaded_at`
+
+Records when the PDF was successfully fetched from Adobe Sign and saved to disk. It answers: **do we have the file?**
+
+Useful for:
+- Skipping the download API call on reruns — if `downloaded_at` is not null and the file exists on disk, there is no need to hit Adobe Sign again
+- Detecting downloads that are stale and need refreshing (e.g. if you re-download after a certain period to get an updated audit report page)
+- Diagnosing failures — if `downloaded_at` is null but the agreement has existed for days, something went wrong in the download step
+
+---
+
+## `parsed_at`
+
+Records when Claude successfully extracted fields and wrote them to the relevant parsed table. It answers: **have we processed the file?**
+
+Useful for:
+- The parse pipeline's skip logic — `WHERE parsed_at IS NULL OR parse_status = 'failed'` is how you avoid re-parsing already processed documents on every run
+- Detecting documents that were downloaded but never parsed — a non-null `downloaded_at` with a null `parsed_at` means the file is sitting on disk unprocessed
+- Incremental re-parsing — if you update your prompts to extract a new field, you can force a re-parse by resetting `parsed_at` to null without re-downloading
+
+---
+
+## Why both matter
+
+A document moves through two distinct failure points:
+
+```
+Adobe Sign API  →  [download_at]  →  disk  →  [parsed_at]  →  parsed_* table
+```
+
+If the Adobe Sign API is down, `downloaded_at` stays null. The file never reaches disk. The parse step never runs.
+
+If the download succeeds but Claude returns malformed JSON or the extraction crashes, `downloaded_at` is set but `parsed_at` stays null and `parse_status` is `failed`. You have the file — you just need to retry the parse step, not the download.
+
+Without both timestamps you cannot distinguish between these two failure modes, and your retry logic has to be coarser — either re-run everything or nothing.
+
+---
+
+## In practice
+
+The combination of `downloaded_at`, `parsed_at`, and `parse_status` gives you four meaningful states for any document:
+
+| `downloaded_at` | `parse_status` | `parsed_at` | Meaning |
+|---|---|---|---|
+| null | null | null | Not yet downloaded |
+| set | pending | null | Downloaded, parse in progress |
+| set | success | set | Fully processed |
+| set | failed | null | Downloaded, parse failed — retry parse only |
+
+That state matrix is what makes the pipeline safely resumable after any failure without re-downloading files you already have.
+__
+
+## AG QUESTION
+so what values do I store in downloaded_at and parsed_at?
+
+Both store a **UTC timestamp string** — the ISO 8601 datetime of when that event completed successfully.
+
+```python
+from datetime import datetime, timezone
+
+datetime.now(timezone.utc).isoformat()
+# → "2024-03-15T14:32:07.451823+00:00"
+```
+
+---
+
+## Exactly when you set each one
+
+**`downloaded_at`** — set once, immediately after the PDF bytes are written to disk and the file is confirmed to exist:
+
+```python
+with open(dest_path, "wb") as f:
+    for chunk in pdf_resp.iter_content(chunk_size=8192):
+        f.write(chunk)
+
+# Only set it after the write succeeds
+conn.execute("""
+    UPDATE documents SET
+        downloaded_at = ?,
+        file_size_bytes = ?
+    WHERE agreement_id = ?
+""", (datetime.now(timezone.utc).isoformat(), dest_path.stat().st_size, agreement_id))
+```
+
+Never set it speculatively before the write, or on error. A non-null value must mean the file is on disk.
+
+**`parsed_at`** — set once, immediately after `persist_contract()` (or the equivalent for the other types) commits successfully to the database:
+
+```python
+persist_contract(conn, agreement_id, fields, confidence, raw_json)
+
+# Only set it after the DB write succeeds
+conn.execute("""
+    UPDATE documents SET
+        parse_status = 'success',
+        parsed_at = ?
+    WHERE agreement_id = ?
+""", (datetime.now(timezone.utc).isoformat(), agreement_id))
+```
+
+---
+
+## What you never store there
+
+- Do not store the timestamp when you *started* the operation — only when it *completed successfully*. A started-but-never-finished timestamp is indistinguishable from a success.
+- Do not store a timestamp on failure — that is what `parse_status = 'failed'` and `error_message` are for. A null `parsed_at` with a failed status is unambiguous: it failed, and when it failed is in the `error_log`.
+__
+## AG QUESTION
+the same module that is calling the download request is saving the document to file (in chunks) what is the best practice here?
+
+The best practice is to **stream-write to a temp file first, then atomically move it to the final path** once the download is complete and verified. Never write directly to the final destination path during the download.
+
+---
+
+## Why this matters
+
+If you write directly to `{agreement_id}.pdf` and the process crashes mid-download — network timeout, disk full, KeyboardInterrupt — you are left with a partial file at the final path. On the next run, `dest_path.exists()` returns `True`, the download is skipped, and you silently process a corrupted PDF. `downloaded_at` gets set, parsing fails or produces garbage, and the root cause is invisible.
+
+---
+
+## The pattern
+
+```python
+import tempfile
+import shutil
+from pathlib import Path
+
+def download_agreement_pdf(agreement_id: str, sender_email: str, 
+                           agreement_type: str) -> Path:
+    dest_dir = STORAGE_DIR / agreement_type
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest_path = dest_dir / f"{agreement_id}.pdf"
+
+    if dest_path.exists():
+        log.info("Already downloaded: %s", dest_path)
+        return dest_path
+
+    # Step 1 — get temp URL from Adobe Sign
+    r = requests.get(
+        f"{BASE_URL}/agreements/{agreement_id}/combinedDocument/url",
+        headers=get_headers(sender_email),
+        params={"attachAuditReport": "true"},
+        timeout=30,
+    )
+    r.raise_for_status()
+    temp_url = r.json()["url"]
+
+    # Step 2 — stream to a temp file in the SAME directory as the destination
+    # Using the same directory is critical — ensures the rename is atomic
+    # (a cross-device move would be a copy+delete, not atomic)
+    with tempfile.NamedTemporaryFile(
+        dir=dest_dir,
+        prefix=f".tmp_{agreement_id}_",
+        suffix=".pdf",
+        delete=False
+    ) as tmp_file:
+        tmp_path = Path(tmp_file.name)
+        try:
+            pdf_resp = requests.get(temp_url, timeout=60, stream=True)
+            pdf_resp.raise_for_status()
+
+            for chunk in pdf_resp.iter_content(chunk_size=8192):
+                tmp_file.write(chunk)
+
+        except Exception:
+            # Clean up the incomplete temp file before re-raising
+            tmp_path.unlink(missing_ok=True)
+            raise
+
+    # Step 3 — verify the download produced a non-empty file
+    if tmp_path.stat().st_size == 0:
+        tmp_path.unlink()
+        raise ValueError(f"Downloaded file is empty for agreement {agreement_id}")
+
+    # Step 4 — atomic rename to final destination
+    # On the same filesystem this is a single OS operation — it either
+    # completes fully or not at all, no partial state possible
+    shutil.move(str(tmp_path), dest_path)
+
+    log.info("Downloaded %s → %s (%d bytes)", 
+             agreement_id, dest_path, dest_path.stat().st_size)
+    return dest_path
+```
+
+---
+
+## Why each step matters
+
+**Temp file in the same directory as the destination.** `shutil.move` on the same filesystem becomes an `os.rename` — a single atomic OS syscall. If the temp file were in `/tmp` and the destination on a different mount point, `shutil.move` falls back to copy-then-delete, which is not atomic. Keeping both on the same filesystem guarantees the rename is instantaneous and uninterruptible.
+
+**`delete=False` on the NamedTemporaryFile.** The default `delete=True` would delete the file when the `with` block exits — before you can rename it. You need `delete=False` and manual cleanup on failure.
+
+**Explicit cleanup in the `except` block.** If the download fails mid-stream, the incomplete temp file is deleted immediately. Your storage directory never accumulates `.tmp_*` debris from failed runs.
+
+**Size check before rename.** A 200 OK with an empty body is a valid HTTP response but not a valid PDF. The size check catches this before the bad file reaches its final path.
+
+**`downloaded_at` is set by the caller after `download_agreement_pdf` returns successfully.** The download function's only job is to get the file to disk safely. The timestamp is the caller's concern — this keeps the function focused and makes the timestamp meaningful: it reflects when the caller confirmed the file is ready for use, not just when the last byte was written.
+
+---
+
+## What your storage directory looks like during a run
+
+```
+storage/contracts/
+    abc123.pdf          ← completed, safe
+    def456.pdf          ← completed, safe
+    .tmp_ghi789_a1b2.pdf ← in progress right now
+```
+
+And after any crash or interruption:
+
+```
+storage/contracts/
+    abc123.pdf          ← completed, safe
+    def456.pdf          ← completed, safe
+    # .tmp_ file was cleaned up by the except block
+    # ghi789.pdf does not exist — next run will re-download cleanly
+```
+___
+# AG QUESTION PURGE STATUS
+
+Yes, a status field is exactly the right approach — for the same reason `parse_status` works well: a document moves through a defined lifecycle and you need to know which state it is in at any point.
+
+---
+
+## Recommended approach: a single `file_status` field
+
+Rather than a boolean `is_purged` flag, use a status enum that captures the full lifecycle:
+
+```sql
+file_status TEXT CHECK(file_status IN (
+    'pending',      -- agreement identified, download not yet attempted
+    'downloaded',   -- file is on disk, ready for parsing
+    'parsed',       -- parsing complete, file still on disk
+    'purged'        -- file deleted from disk, parsed data retained in DB
+)) DEFAULT 'pending'
+```
+
+This replaces the looser `parse_status` field and consolidates file lifecycle tracking into one column. The states map cleanly to what you already have:
+
+| Before | After |
+|---|---|
+| `downloaded_at IS NULL` | `file_status = 'pending'` |
+| `downloaded_at SET, parse_status = 'pending/failed'` | `file_status = 'downloaded'` |
+| `parse_status = 'success'` | `file_status = 'parsed'` |
+| *(new)* | `file_status = 'purged'` |
+
+---
+
+## Updated `documents` table
+
+```sql
+CREATE TABLE IF NOT EXISTS documents (
+    agreement_id        TEXT PRIMARY KEY,
+    agreement_type      TEXT NOT NULL,
+    file_path           TEXT,
+    file_size_bytes     INTEGER,
+    downloaded_at       TEXT,
+    parsed_at           TEXT,
+    purged_at           TEXT,
+    file_status         TEXT CHECK(file_status IN (
+                            'pending','downloaded','parsed','purged'
+                        )) DEFAULT 'pending',
+    error_message       TEXT,
+    FOREIGN KEY (agreement_id) REFERENCES agreements(agreement_id)
+);
+```
+
+`purged_at` is the timestamp when the file was deleted — same pattern as `downloaded_at` and `parsed_at`. You keep all three timestamps so the full history of the document is auditable.
+
+## SQLA CREATE TABLE CODE: (GEMINI)
+from datetime import datetime
+from typing import Optional
+from sqlalchemy import String, Integer, ForeignKey, CheckConstraint
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+
+```python
+# 1. Base Class definition
+class Base(DeclarativeBase):
+    pass
+
+# 2. Mapped ORM Model
+class Document(Base):
+    __tablename__ = "documents"
+
+    agreement_id: Mapped[str] = mapped_column(
+        ForeignKey("agreements.agreement_id"), 
+        primary_key=True
+    )
+    agreement_type: Mapped[str] = mapped_column(String, nullable=False)
+    file_path: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    file_size_bytes: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    downloaded_at: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    parsed_at: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    purged_at: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    
+    file_status: Mapped[str] = mapped_column(
+        str,
+        # AG: Validate CheckConstraint in SQLA documentation
+        CheckConstraint("file_status IN ('pending', 'downloaded', 'parsed', 'purged')"),
+        server_default="pending",
+        nullable=False
+    )
+    error_message: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+```
+
+
+---
+
+## Purge module
+
+```python
+from pathlib import Path
+from datetime import datetime, timezone
+import sqlite3
+import logging
+
+log = logging.getLogger(__name__)
+
+
+def purge_documents(
+    conn: sqlite3.Connection,
+    agreement_type: str | None = None,
+    older_than_days: int | None = None,
+    dry_run: bool = True,
+) -> dict:
+    """
+    Delete PDF files from disk for parsed agreements.
+    
+    Only purges documents where file_status = 'parsed' — never touches
+    files that have not been successfully parsed.
+    
+    Args:
+        agreement_type: restrict purge to one type, or None for all types
+        older_than_days: only purge files parsed more than N days ago
+        dry_run: if True, report what would be purged without deleting
+    
+    Returns:
+        dict with counts of purged, skipped, and failed files
+    """
+    query = """
+        SELECT agreement_id, file_path, file_size_bytes, agreement_type, parsed_at
+        FROM documents
+        WHERE file_status = 'parsed'
+          AND file_path IS NOT NULL
+    """
+    params = []
+
+    if agreement_type:
+        query += " AND agreement_type = ?"
+        params.append(agreement_type)
+
+    if older_than_days:
+        cutoff = (
+            datetime.now(timezone.utc).timestamp() - older_than_days * 86400
+        )
+        cutoff_iso = datetime.fromtimestamp(cutoff, tz=timezone.utc).isoformat()
+        query += " AND parsed_at < ?"
+        params.append(cutoff_iso)
+
+    rows = conn.execute(query, params).fetchall()
+    log.info("Found %d files eligible for purge (dry_run=%s)", len(rows), dry_run)
+
+    results = {"purged": 0, "skipped": 0, "failed": 0, "bytes_freed": 0}
+
+    for agreement_id, file_path, file_size_bytes, agr_type, parsed_at in rows:
+        path = Path(file_path)
+
+        if not path.exists():
+            # File already gone — update status to reflect reality
+            log.warning("File not found on disk, marking as purged: %s", file_path)
+            if not dry_run:
+                _mark_purged(conn, agreement_id, file_size_bytes or 0)
+            results["skipped"] += 1
+            continue
+
+        if dry_run:
+            log.info("[DRY RUN] Would purge: %s (%d bytes, parsed %s)",
+                     file_path, file_size_bytes or 0, parsed_at)
+            results["purged"] += 1
+            results["bytes_freed"] += file_size_bytes or 0
+            continue
+
+        try:
+            path.unlink()
+            _mark_purged(conn, agreement_id, file_size_bytes or 0)
+            log.info("Purged: %s (%d bytes)", file_path, file_size_bytes or 0)
+            results["purged"] += 1
+            results["bytes_freed"] += file_size_bytes or 0
+        except OSError as e:
+            log.error("Failed to delete %s: %s", file_path, e)
+            results["failed"] += 1
+
+    log.info(
+        "Purge complete — purged: %d, skipped: %d, failed: %d, freed: %.1f MB",
+        results["purged"], results["skipped"], results["failed"],
+        results["bytes_freed"] / 1_048_576,
+    )
+    return results
+
+
+def _mark_purged(conn: sqlite3.Connection, agreement_id: str, file_size_bytes: int):
+    conn.execute("""
+        UPDATE documents SET
+            file_status = 'purged',
+            purged_at   = ?,
+            file_path   = NULL
+        WHERE agreement_id = ?
+    """, (datetime.now(timezone.utc).isoformat(), agreement_id))
+    conn.commit()
+```
+
+---
+
+## Key decisions in the purge design
+
+**Only purge `file_status = 'parsed'`.** The purge module will never touch a file that has not been successfully parsed. A `downloaded` file that failed parsing still has value — it is the only copy of that document. Losing it means re-downloading from Adobe Sign, which may not always be possible if the agreement was archived or the temp URL expired.
+
+**`file_path` is set to NULL after purge.** Once the file is gone, the path is meaningless and potentially misleading. Storing a path that points to a non-existent file is worse than storing NULL — a NULL is unambiguous.
+
+**`dry_run=True` by default.** The first time you run a purge, you want to see exactly what would be deleted before committing. Make dry run the default so a misfire does not cost you files.
+
+**`purged_at` timestamp is kept permanently.** You retain the full audit trail — when it was downloaded, when it was parsed, when it was purged — even after the file is gone. This is useful for compliance and for debugging if a parsed field value is ever questioned.
+
+---
+
+## Useful queries after purge
+
+```sql
+-- Storage still in use
+SELECT agreement_type,
+       COUNT(*) as files,
+       ROUND(SUM(file_size_bytes) / 1048576.0, 1) as mb_on_disk
+FROM documents
+WHERE file_status IN ('downloaded', 'parsed')
+GROUP BY agreement_type;
+
+-- Files purged this month
+SELECT COUNT(*) as purged,
+       ROUND(SUM(file_size_bytes) / 1048576.0, 1) as mb_freed
+FROM documents
+WHERE file_status = 'purged'
+  AND purged_at >= date('now', 'start of month');
+
+-- Agreements where parsed data exists but file is gone (expected after purge)
+SELECT a.agreement_id, a.name, c.party_a_name, c.expiration_date
+FROM parsed_contracts c
+JOIN agreements a ON a.agreement_id = c.agreement_id
+JOIN documents d ON d.agreement_id = c.agreement_id
+WHERE d.file_status = 'purged';
+```

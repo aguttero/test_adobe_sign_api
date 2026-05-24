@@ -1,4 +1,0 @@
-This is the branch tracker in main
-Commit 0417pm14
-_______
-this is Minimax branch

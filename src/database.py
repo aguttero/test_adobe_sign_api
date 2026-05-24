@@ -1,4 +1,3 @@
-from ast import Return
 import logging
 from datetime import date, datetime
 from typing import List, Optional, Type, Dict, Any
@@ -7,6 +6,7 @@ from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.exc import SQLAlchemyError
 
 import models
+import utils
 from exceptions import DatabaseError
 
 
@@ -661,6 +661,13 @@ def fetch_agrmnt_by_wkflow(start_date, end_date, target_wf:list)->list:
     logger.debug(f"Fetched Agreement ids. Agreement count: {len(result)}")
     return result
 
+
+def update_agrmnt_download_status (agreement_id:str, file_location:str):
+    #get timestamp
+    current_ts = utils.get_current_timestamp()
+    #persist record
+    logger.debug(f"Updated download lifecycle data for: {agreement_id}, ts= {current_ts!r}")
+    
 
 # CREATED BY GEMINI - REVIEW
 def get_all_agreements_for_export() -> List[Dict[str, Any]]:

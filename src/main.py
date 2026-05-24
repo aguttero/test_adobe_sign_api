@@ -352,10 +352,15 @@ def download_documents(date_range_start, date_range_end, agreement_type:str):
 
     # FETCH FROM DB
     # Obtain list of agreements id to download from API
-    target_wkflow_list = [5] # WFs 5,6 carry JAD process 
+    target_wkflow_list = [6] # WFs 5,6 carry JAD process 
     # target_wkflow_list = [5,6] # WFs 5,6 carry JAD process 
     target_agreement_list = db.fetch_agrmnt_by_wkflow(date_range_start, date_range_end, target_wkflow_list)
 
+    for agrmnt in target_agreement_list:
+        counter = 0
+        db.update_agrmnt_download_status(agrmnt,"file_name_tbd")
+        counter +=1
+    logger.debug(f"Updated {counter} agreements")
 
     counter = 0
     # api_pdf_bytes = api.download_agreement(target_agreement_id)

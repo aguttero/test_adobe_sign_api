@@ -75,6 +75,15 @@ TODO add last_sync_date to Agreements and Signers tables
 ## OVERAL SYNC STATUS
 TODO Define how this flag updates
 
+## Download agreements
+* result = download_documents(agreement_type)
+    *
+
+
+
+
+
+
 
 ## Finalize STAGE
 ### Calculate elapsed time
@@ -97,6 +106,8 @@ TODO pass the qty of new users, new agreements, new wkflows, new_groups
 ## FIX DB Sync close
 TODO create a CLOSE record when main exits because of error
 
+__________________
+SOW: 22-MAY
 ## DOWNLOAD STAGE
 TODO * fetch from DB new JAD agreement_id list
 TODO * Iterate JAD list

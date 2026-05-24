@@ -173,11 +173,20 @@ class Document(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     agreement_id: Mapped[int] = mapped_column(ForeignKey("agreement.id"))
     agreemen_type: Mapped [str] # JAD CONTRATO OTRO
-    file_path: Mapped[Optional[str]]
+    pdf_file_path: Mapped[Optional[str]]
+    txt_file_path: Mapped[Optional[str]]
     file_size_bytes: Mapped[Optional[int]]
     downloaded_ts: Mapped[Optional[str]]
-    parse_status: Mapped[Optional[str]]
+    file_status: Mapped[str] = mapped_column(default="pending") #lifecycle status for pdf and txt
+    # file_status: Mapped[str] = mapped_column(
+    #     str,
+    #     CheckConstraint("file_status IN ('pending', 'downloaded', 'parsed', 'purged_pdf', 'purged_full' )"),
+    #     server_default="pending",
+    #     nullable=False
+    # )
     parsed_ts: Mapped[Optional[str]]
+    pdf_purged_ts: Mapped[Optional[str]]
+    txt_purged_ts: Mapped[Optional[str]]
     error_message: Mapped[Optional[str]]
 
     agreement: Mapped["Agreement"] = relationship(back_populates="document")
