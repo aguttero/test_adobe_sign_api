@@ -1,3 +1,4 @@
+from ast import mod
 import logging
 from datetime import date, datetime
 from typing import List, Optional, Type, Dict, Any
@@ -662,12 +663,42 @@ def fetch_agrmnt_by_wkflow(start_date, end_date, target_wf:list)->list:
     return result
 
 
-def update_agrmnt_download_status (agreement_id:str, file_location:str):
-    #get timestamp
+def update_agrmnt_download_status (agreement_id:str,agreement_type:str):
+    # import OS o PATHLIB para otener tamaño del file
+    # import os
+    # get timestamp
     current_ts = utils.get_current_timestamp()
-    #persist record
-    logger.debug(f"Updated download lifecycle data for: {agreement_id}, ts= {current_ts!r}")
     
+    #persist record
+    with _get_session() as session:
+        # FETCH agreement_pk id from Agreement Table
+        stmt = select(models.Agreement).filter_by(agreement_id=agreement_id)
+        agrmnt_record = session.execute(stmt).scalar_one_or_none()
+
+        if agrmnt_record:
+            agrmnt_pkid = agrmnt_record.id
+        else:
+            logger.error(f"Agreement not found error: {agreement_id}")
+        
+        pdf_file_path = f"{agreement_type.lower()}/{agreement_id}.pdf"
+        new_record = models.Document(
+            agreement_id= agrmnt_pkid,
+            agreemen_type= agreement_type,
+            pdf_file_path= pdf_file_path,
+            txt_file_path= None,
+            # file_size_bytes=os.path.getsize(pdf_file_path),
+            downloaded_ts= current_ts,
+            file_status= "donwloaded" ,
+            parsed_ts= None,
+            pdf_purged_ts= None,
+            txt_purged_ts= None,
+            error_message= None
+
+        )
+        session.add(new_record) # update to ORM V2
+        session.commit()
+    logger.debug(f"Updated download lifecycle data for agreement: {agreement_id}, pk_id= {agrmnt_pkid!r} ts= {current_ts!r}")
+
 
 # CREATED BY GEMINI - REVIEW
 def get_all_agreements_for_export() -> List[Dict[str, Any]]:

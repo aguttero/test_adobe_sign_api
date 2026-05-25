@@ -1709,3 +1709,114 @@ JOIN agreements a ON a.agreement_id = c.agreement_id
 JOIN documents d ON d.agreement_id = c.agreement_id
 WHERE d.file_status = 'purged';
 ```
+____
+## STORAGE RELATIVE LOCATION INDEX in DB
+
+Store a **relative path from a known base directory**, not the full absolute path and not just the filename alone.
+
+---
+
+## Why not the full absolute path
+
+Full paths are environment-specific. The same database moved from your laptop to a server, or from one OS to another, breaks every path reference:
+
+```
+# Stored in DB on your laptop:
+/Users/carlos/projects/sign-sync/storage/contracts/abc123.pdf
+
+# Meaningless on the server where the project lives at:
+/opt/sign-sync/storage/contracts/abc123.pdf
+```
+
+Every time the storage root moves you would need to run an UPDATE across the entire documents table. Worse, if you forget, the paths silently point nowhere and `path.exists()` returns False for everything.
+
+---
+
+## Why not just the filename
+
+A bare filename loses the agreement type subfolder structure:
+
+```
+abc123.pdf   ← which folder? contracts? purchase_orders?
+```
+
+You could reconstruct the path by joining with `agreement_type`, but that is implicit logic scattered across your codebase — anywhere you need the path you have to remember to do that join and reconstruction. It is fragile.
+
+---
+
+## The right approach: relative path from a fixed base
+
+Store the path relative to your storage root:
+
+```
+contracts/abc123.pdf
+purchase_orders/def456.pdf
+authorizations/ghi789.pdf
+```
+
+Then resolve to an absolute path at runtime by joining with the base directory from your environment config:
+
+```python
+STORAGE_DIR = Path(os.environ.get("STORAGE_DIR", "storage"))
+
+# When storing:
+relative_path = Path(agreement_type) / f"{agreement_id}.pdf"
+conn.execute("UPDATE documents SET file_path = ? ...", (str(relative_path), ...))
+
+# When reading:
+relative_path = Path(row["file_path"])
+absolute_path = STORAGE_DIR / relative_path
+```
+
+This way the database is portable. You can move the storage root by changing one environment variable — nothing in the database needs to change. The relative path is also human-readable and self-describing: `contracts/abc123.pdf` tells you both the type and the identifier without any joins.
+
+---
+
+## Updated download function
+
+```python
+def download_agreement_pdf(agreement_id: str, sender_email: str,
+                           agreement_type: str) -> tuple[Path, str]:
+    """
+    Returns (absolute_path, relative_path_str).
+    Caller stores relative_path_str in the DB.
+    """
+    relative_path = Path(agreement_type) / f"{agreement_id}.pdf"
+    absolute_path = STORAGE_DIR / relative_path
+    absolute_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if absolute_path.exists():
+        log.info("Already downloaded: %s", relative_path)
+        return absolute_path, str(relative_path)
+
+    # ... download logic unchanged ...
+
+    return absolute_path, str(relative_path)
+```
+
+And in the caller:
+
+```python
+absolute_path, relative_path = download_agreement_pdf(
+    agreement_id, sender_email, agreement_type
+)
+conn.execute("""
+    UPDATE documents SET
+        file_path       = ?,
+        file_size_bytes = ?,
+        downloaded_at   = ?,
+        file_status     = 'downloaded'
+    WHERE agreement_id = ?
+""", (relative_path, absolute_path.stat().st_size,
+      datetime.now(timezone.utc).isoformat(), agreement_id))
+```
+
+---
+
+## Summary
+
+| Option | Verdict | Reason |
+|---|---|---|
+| Full absolute path | No | Breaks when storage root moves |
+| Filename only | No | Loses folder structure, requires implicit reconstruction |
+| Relative path from base | Yes | Portable, self-describing, resolved at runtime from config |
