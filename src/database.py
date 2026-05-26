@@ -740,9 +740,6 @@ def update_agrmnt_doc_parse_status (agreement_id:str, agreement_type:str, doc_fi
 
 
 
-
-
-
 # CREATED BY GEMINI - REVIEW
 def get_all_agreements_for_export() -> List[Dict[str, Any]]:
     """Fetches all agreements with related user, group, signers, and doc fields for export.

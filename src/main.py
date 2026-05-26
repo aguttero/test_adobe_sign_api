@@ -363,7 +363,7 @@ def download_documents(date_range_start, date_range_end, agreement_type:str):
     for agrmnt_id in target_agreement_list:
         counter = 0
         # ---DOWNLOAD AGREEMENT FROM API
-        # api_pdf_bytes = api.download_agreement(target_agreement_id)
+        api_pdf_bytes = api.download_agreement(agrmnt_id)
 
 
         # ---SAVE PDF TO FILE
@@ -374,10 +374,10 @@ def download_documents(date_range_start, date_range_end, agreement_type:str):
             # return algo (target_file_path?)
         # Save as .tmp then validate downloaded ok then rename to .pdf
         
-        # target_file_path = f"{JAD_PATH}{target_agreement_id}.pdf"
-        # with open(target_file_path,"wb") as file:
-        #     file.write(api_pdf_bytes)
-        # logger.debug(f"Saved to local file agreement_id: {target_agreement_id}.pdf")
+        target_file_path = f"{STORAGE_FOLDER}{JAD_PDF_FOLDER}{agrmnt_id}.pdf"
+        with open(target_file_path,"wb") as file:
+            file.write(api_pdf_bytes)
+        logger.debug(f"Saved to local file agreement_id: {STORAGE_FOLDER}{JAD_PDF_FOLDER}{agrmnt_id}.pdf")
 
         # ---UPDATE DOCUMENT INDEX TABLE
         db_file_status = "downloaded"
@@ -388,8 +388,8 @@ def download_documents(date_range_start, date_range_end, agreement_type:str):
         #--- SAVE TXT TO FILE
 
         #---UPDATE DOCUMENT INDEX TABLE
-        db_file_status = "parsed"
-        db.update_agrmnt_doc_parse_status(agrmnt_id,agreement_type, db_file_status, JAD_TXT_FOLDER)
+        # db_file_status = "parsed"
+        # db.update_agrmnt_doc_parse_status(agrmnt_id,agreement_type, db_file_status, JAD_TXT_FOLDER)
 
 
         counter +=1
