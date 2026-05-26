@@ -1820,3 +1820,62 @@ conn.execute("""
 | Full absolute path | No | Breaks when storage root moves |
 | Filename only | No | Loses folder structure, requires implicit reconstruction |
 | Relative path from base | Yes | Portable, self-describing, resolved at runtime from config |
+
+## File size data:
+
+Para calcular el tamaño de un archivo PDF en Python, la forma más directa y eficiente es obtener los bytes directamente desde el sistema operativo. No necesitas leer ni abrir el contenido del archivo, por lo que el proceso es instantáneo. [1] 
+Aquí tienes las tres mejores opciones para lograrlo:
+## 1. Usando la librería estándar os (La más común)
+Es el método tradicional. Funciona con cualquier tipo de archivo, incluido un PDF.
+
+import os
+ruta = "documento.pdf"tamaño_bytes = os.path.getsize(ruta)
+
+print(f"El tamaño es: {tamaño_bytes} bytes")
+
+## 2. Usando pathlib (Recomendado para Python moderno)
+Es la forma más limpia y orientada a objetos disponible desde Python 3.4.
+
+from pathlib import Path
+ruta = Path("documento.pdf")tamaño_bytes = ruta.stat().st_size
+
+print(f"El tamaño es: {tamaño_bytes} bytes")
+
+## 3. Conversión a unidades legibles (KB, MB)
+Como los bytes son difíciles de leer para los humanos, puedes usar este fragmento para convertir el resultado:
+
+import os
+tamaño_bytes = os.path.getsize("documento.pdf")
+# Conversióntamaño_kb = tamaño_bytes / 1024tamaño_mb = tamaño_kb / 1024
+
+print(f"{tamaño_bytes} bytes | {tamaño_kb:.2f} KB | {tamaño_mb:.2f} MB")
+
+
+
+### Sin OS or Pathlib modules:
+
+La única manera nativa de hacerlo sin importar os ni pathlib es abriendo el archivo directamente con la función integrada open() y midiendo su contenido.
+Aquí tienes las dos formas de lograrlo, dependiendo de si quieres leer todo el archivo o solo moverte a través de él:
+## 1. El método eficiente (Moviendo el cursor)
+Este método es el mejor porque no carga el PDF en la memoria RAM. Abre el archivo en modo binario, mueve el cursor al final con seek() y te dice en qué posición quedó con tell().
+
+with open("documento.pdf", "rb") as archivo:
+    # Mueve el cursor al final del archivo (0 bytes desde el final)
+    archivo.seek(0, 2)
+    # Te da la posición actual del cursor, que equivale al tamaño total
+    tamaño_bytes = archivo.tell()
+
+print(f"El tamaño es: {tamaño_bytes} bytes")
+
+## 2. El método directo (Leyendo el contenido)
+Este método abre el archivo en modo binario ("rb") y lee todos sus bytes de golpe. No se recomienda para PDFs muy grandes (de muchos megabytes), ya que consumirá mucha memoria RAM.
+
+with open("documento.pdf", "rb") as archivo:
+    contenido = archivo.read()
+    tamaño_bytes = len(contenido)
+
+print(f"El tamaño es: {tamaño_bytes} bytes")
+
+## 💡 ¿Por qué funciona "rb"?
+Es fundamental usar el modo "rb" (Read Binary). Si abres el PDF en modo de texto normal ("r"), Python intentará decodificar los caracteres y el conteo de bytes será incorrecto o arrojará un error de decodificación (UnicodeDecodeError).
+

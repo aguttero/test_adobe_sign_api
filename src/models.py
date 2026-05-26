@@ -171,7 +171,7 @@ class Document(Base):
     __tablename__ = "document"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    agreement_id: Mapped[int] = mapped_column(ForeignKey("agreement.id"))
+    agreement_id: Mapped[int] = mapped_column(ForeignKey("agreement.id"), index=True)
     agreemen_type: Mapped [str] # JAD CONTRATO OTRO
     pdf_file_path: Mapped[Optional[str]]
     txt_file_path: Mapped[Optional[str]]
@@ -192,7 +192,7 @@ class Document(Base):
     agreement: Mapped["Agreement"] = relationship(back_populates="document")
     
     def __repr__(self) -> str:
-        return f"Document(pk_id={self.id!r}, fk_id={self.agreement_id!r}, file_path={self.file_path!r})"
+        return f"Document(pk_id= {self.id!r}, fk_id= {self.agreement_id!r}, pdf_path= {self.pdf_file_path!r}, txt_path= {self.txt_file_path})"
 
 
 def parse_agreements_v1(api_agreement_data: List[dict], group_pk_lookup: dict[str,int]) -> List[Agreement]:

@@ -663,12 +663,12 @@ def fetch_agrmnt_by_wkflow(start_date, end_date, target_wf:list)->list:
     return result
 
 
-def update_agrmnt_download_status (agreement_id:str,agreement_type:str):
+def update_agrmnt_doc_status (agreement_id:str, agreement_type:str, doc_file_status:str, folder_name:str):
     # import OS o PATHLIB para otener tamaño del file
     # import os
     # get timestamp
     current_ts = utils.get_current_timestamp()
-    
+
     #persist record
     with _get_session() as session:
         # FETCH agreement_pk id from Agreement Table
@@ -679,8 +679,9 @@ def update_agrmnt_download_status (agreement_id:str,agreement_type:str):
             agrmnt_pkid = agrmnt_record.id
         else:
             logger.error(f"Agreement not found error: {agreement_id}")
-        
-        pdf_file_path = f"{agreement_type.lower()}/{agreement_id}.pdf"
+
+
+        pdf_file_path = f"{folder_name}{agreement_id}.pdf"
         new_record = models.Document(
             agreement_id= agrmnt_pkid,
             agreemen_type= agreement_type,
@@ -688,16 +689,58 @@ def update_agrmnt_download_status (agreement_id:str,agreement_type:str):
             txt_file_path= None,
             # file_size_bytes=os.path.getsize(pdf_file_path),
             downloaded_ts= current_ts,
-            file_status= "donwloaded" ,
+            file_status= doc_file_status,
             parsed_ts= None,
             pdf_purged_ts= None,
             txt_purged_ts= None,
             error_message= None
 
         )
-        session.add(new_record) # update to ORM V2
+        session.add(new_record)
         session.commit()
-    logger.debug(f"Updated download lifecycle data for agreement: {agreement_id}, pk_id= {agrmnt_pkid!r} ts= {current_ts!r}")
+    logger.debug(f"Updated download lifecycle data for agreement: {agreement_id}, agrmnt_pk_id= {agrmnt_pkid!r} ts= {current_ts!r}")
+
+
+def update_agrmnt_doc_parse_status (agreement_id:str, agreement_type:str, doc_file_status:str, folder_name:str):
+    # import OS o PATHLIB para otener tamaño del file
+    # import os
+    # get timestamp
+    current_ts = utils.get_current_timestamp()
+
+    #UPDATE existing record
+    with _get_session() as session:
+        # FETCH agreement_pk id from Agreement Table
+        stmt = select(models.Agreement).filter_by(agreement_id=agreement_id)
+        agrmnt_record = session.execute(stmt).scalar_one_or_none()
+        agrmnt_pkid = agrmnt_record.id
+        # logger.debug(f"1 OK agrmnt_pkid= {agrmnt_pkid!r}")
+
+        # --- OLD CODE to fetch matching record from Document Table
+        # stmt = select(models.Document).filter_by(agreement_id=agrmnt_pkid)
+        # doc_record = session.execute(stmt).scalar_one_or_none()
+        # logger.debug(f"2 OK doc_record= {doc_record!r}")
+
+        txt_file_path = f"{folder_name}{agreement_id}.txt"
+        # if doc_record:
+        #     doc_record.txt_file_path = txt_file_path
+        #     doc_record.parsed_ts = current_ts
+        #     doc_record.file_status = doc_file_status
+        #     session.commit()
+        #     logger.debug(f"Updated download lifecycle data for agreement: {agreement_id}, agreement_pk_id= {agrmnt_record.id!r}, doc_pk_id= {agrmnt_record.document.id} ts= {current_ts!r}")
+        # else:
+        #     logger.error(f"Agreement not found error: {agreement_id}")
+        if agrmnt_record:
+            agrmnt_record.document.txt_file_path = txt_file_path
+            agrmnt_record.document.parsed_ts = current_ts
+            agrmnt_record.document.file_status = doc_file_status
+            session.commit()
+            logger.debug(f"Updated download lifecycle data for agreement: {agreement_id}, agreement_pk_id= {agrmnt_record.id!r}, doc_pk_id= {agrmnt_record.document.id} ts= {current_ts!r}")
+        else:
+            logger.error(f"Agreement not found error: {agreement_id}")
+
+
+
+
 
 
 # CREATED BY GEMINI - REVIEW

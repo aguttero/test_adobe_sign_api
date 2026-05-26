@@ -43,8 +43,11 @@ days_per_year = {
 }
 
 # Storage Locations
-JAD_PATH = "storage/jad/"
-CONTRACT_PATH = "storage/contract/"
+STORAGE_FOLDER = "storage/"
+JAD_PDF_FOLDER = "jad_pdf/"
+JAD_TXT_FOLDER = "jad_txt/"
+CONTRACT_PDF_FOLDER = "con_pdf/"
+CONTRACT_TXT_FOLDER = "con_txt/"
 
 
 # Init Module-level logger
@@ -359,12 +362,39 @@ def download_documents(date_range_start, date_range_end, agreement_type:str):
     # ITERATE AGREEMENT LIST TO FETCH FROM API, STORE and UPDATE DOC INDEX TABLE
     for agrmnt_id in target_agreement_list:
         counter = 0
-        # DOWNOAD AGREEMENT FROM API
+        # ---DOWNLOAD AGREEMENT FROM API
         # api_pdf_bytes = api.download_agreement(target_agreement_id)
 
-        # UPDATE DOCUMENT INDEX TABLE
-        db.update_agrmnt_download_status(agrmnt_id, agreement_type)
+
+        # ---SAVE PDF TO FILE
+        # STORE IN 'tmp_jad/agreement_id.pdf'
+        # Validate file does not exist
+        # if target_file_path.exists():
+            # logger.info("file already donwloaded")
+            # return algo (target_file_path?)
+        # Save as .tmp then validate downloaded ok then rename to .pdf
+        
+        # target_file_path = f"{JAD_PATH}{target_agreement_id}.pdf"
+        # with open(target_file_path,"wb") as file:
+        #     file.write(api_pdf_bytes)
+        # logger.debug(f"Saved to local file agreement_id: {target_agreement_id}.pdf")
+
+        # ---UPDATE DOCUMENT INDEX TABLE
+        db_file_status = "downloaded"
+        db.update_agrmnt_doc_status(agrmnt_id, agreement_type, db_file_status, JAD_PDF_FOLDER)
+
+        #--- PARSE DOCUMENT
+
+        #--- SAVE TXT TO FILE
+
+        #---UPDATE DOCUMENT INDEX TABLE
+        db_file_status = "parsed"
+        db.update_agrmnt_doc_parse_status(agrmnt_id,agreement_type, db_file_status, JAD_TXT_FOLDER)
+
+
         counter +=1
+
+
     logger.debug(f"Updated {counter} agreements")
 
     counter = 0
@@ -372,18 +402,6 @@ def download_documents(date_range_start, date_range_end, agreement_type:str):
     # descargar file y Audit trail por separado
     # agregar a la tabla path del audit trail
 
-    # SAVE PDF TO FILE
-    # Validate file does not exist
-    # if target_file_path.exists():
-    # logger.info("file already donwloaded")
-    # return algo (target_file_path?)
-    
-    # target_file_path = f"{JAD_PATH}{target_agreement_id}.pdf"
-    # with open(target_file_path,"wb") as file:
-    #     file.write(api_pdf_bytes)
-    # logger.debug(f"Saved to local file agreement_id: {target_agreement_id}.pdf")
-
-    # Validate file was saved ok before creating the index
 
     # db.update_db_storage_index(target_file_path,agreement_type,target_agreement_id)
     counter +=1
