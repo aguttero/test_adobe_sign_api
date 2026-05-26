@@ -9,6 +9,7 @@ and that exceptions are caught and logged appropriately.
 import logging
 from datetime import date, datetime, timedelta
 from typing import List, Tuple, Optional
+from dotenv import dotenv_values
 
 import models
 import api
@@ -43,11 +44,13 @@ days_per_year = {
 }
 
 # Storage Locations
-STORAGE_FOLDER = "storage/"
-JAD_PDF_FOLDER = "jad_pdf/"
-JAD_TXT_FOLDER = "jad_txt/"
-CONTRACT_PDF_FOLDER = "con_pdf/"
-CONTRACT_TXT_FOLDER = "con_txt/"
+storage_config = dotenv_values.get('.env')
+
+STORAGE_FOLDER = storage_config.get("STORAGE_FOLDER") # "storage/"
+JAD_PDF_FOLDER = storage_config.get("JAD_PDF_FOLDER") # "jad_pdf/"
+JAD_TXT_FOLDER = storage_config.get("JAD_TXT_FOLDER") # "jad_txt/"
+CONTRACT_PDF_FOLDER = storage_config.get("CONTRACT_PDF_FOLDER") # "con_pdf/"
+CONTRACT_TXT_FOLDER = storage_config.get("CONTRACT_TXT_FOLDER") # "con_txt/"
 
 
 # Init Module-level logger
@@ -383,7 +386,7 @@ def download_documents(date_range_start, date_range_end, agreement_type:str):
         db_file_status = "downloaded"
         db.update_agrmnt_doc_status(agrmnt_id, agreement_type, db_file_status, JAD_PDF_FOLDER)
 
-        #--- PARSE DOCUMENT
+        #--- PARSE DOCUMENT TO TOKENS
 
         #--- SAVE TXT TO FILE
 
@@ -587,7 +590,7 @@ def dev_main () -> int:
 
 
         ### DOWNLOAD STAGE #####
-        # ----- DOWNLOAD STEP
+        # ----- DOWNLOAD AND PARSE TO TOKENS STEP
         # Search for JADs in DB, download, verify and index
 
         agreement_type = "JAD"
@@ -595,7 +598,6 @@ def dev_main () -> int:
         # Validar si se guardaron todos o menos de los que encontrados
         # levantar error o warning
         logger.info(f"Downloaded {agreements_found} documents out of xx in the list")
-
 
 
         # ----- PARSE STEP
