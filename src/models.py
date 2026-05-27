@@ -243,18 +243,19 @@ class AgreementSigner(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     # agreement_id: Mapped[str] = mapped_column(nullable=False, index=True)
-    agreement_id: Mapped[int] = mapped_column(ForeignKey("agreement.id"))
+    agreement_id: Mapped[int] = mapped_column(ForeignKey("agreement.id"), index=True)
     signer_email: Mapped[str] = mapped_column(index=True)
     signer_full_name: Mapped[Optional[str]]
     signer_role: Mapped[str]
     signer_order: Mapped[Optional[int]]
+    signer_label: Mapped[Optional[str]]
     signature_timestamp: Mapped[Optional[str]] # quitar el nullable=False
     signature_date: Mapped [Optional[dt.date]] # quitar el nullable=False
 
     agreement: Mapped["Agreement"] = relationship(back_populates="signers")
 
     def __repr__(self) -> str:
-        return f"AgreementSigner(email={self.signer_email!r}, full_name={self.signer_full_name!r}, role={self.signer_role!r})"
+        return f"AgreementSigner(email={self.signer_email!r}, full_name={self.signer_full_name!r}, role={self.signer_role!r}, label= {self.signer_label!r})"
 
 class SyncHistory(Base):
     """Sync history model mapped to sync_history table."""

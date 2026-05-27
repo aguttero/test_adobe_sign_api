@@ -36,7 +36,7 @@ FETCH_USER_LIST_ENDPOINT: str = f"{BASE_URL}/api/rest/v6/users"
 FETCH_GROUPS_ENDPOINT: str = f"{BASE_URL}/api/rest/v6/groups"
 SEARCH_ENDPOINT: str = f"{BASE_URL}/api/rest/v6/search"
 FETCH_WORKFLOWS_ENDPOINT: str = f"{BASE_URL}/api/rest/v6/workflows"
-DOC_DOWNLOAD_URL_ENDPOINT: str = f"{BASE_URL}/api/rest/v6/agreements/"
+AGREEMENT_INFO_URL_ENDPOINT: str = f"{BASE_URL}/api/rest/v6/agreements/"
 
 # Valid participant roles for signers (includes FORM_FILLER)
 SIGNER_ROLES: set = {"SIGNER", "APPROVER", "FORM_FILLER"}
@@ -410,7 +410,7 @@ def download_agreement(agreement_id:str):
     """
     
     token: str = get_token_manager().get_token()
-    endpoint: str = DOC_DOWNLOAD_URL_ENDPOINT + agreement_id + "/combinedDocument/url"
+    endpoint: str = AGREEMENT_INFO_URL_ENDPOINT + agreement_id + "/combinedDocument/url"
     logger.info(f"Fetching documents from {endpoint}")
     
     headers: dict = {
@@ -443,3 +443,76 @@ def download_agreement(agreement_id:str):
 
     logger.debug(f"Downloaded agreement_id={agreement_id} size=?? no usar len() bytes")
     return api_pdf_bytes
+
+def fetch_approvers(agreement_id:str):
+    """Extract participant info from an Adobe Sign agreement API response.
+
+    Iterates over ``participantSetsInfo`` and returns one dictionary per member
+    in each set's ``memberInfos`` list, flattening role/order/label from the
+    parent participant set onto each member.
+
+    Args:
+        response_data: Parsed JSON dict from the Adobe Sign agreement API
+            (i.e. the result of ``api_response.json()``).
+
+    Returns:
+        A list of dicts, each with keys ``email``, ``name``, ``role``,
+        ``order``, and ``label``. Returns an empty list when
+        ``participantSetsInfo`` is missing or empty.
+
+    Raises:
+        ValueError: If any participant set has zero members in ``memberInfos``.
+        API Error: If the API call fails.
+    """
+    
+    token: str = get_token_manager().get_token()
+    endpoint: str = AGREEMENT_INFO_URL_ENDPOINT + agreement_id
+    logger.info(f"Fetching agreement info from {endpoint}")
+    
+    headers: dict = {
+        'Authorization': f"Bearer {token}"
+    }
+    parameters: dict = {}
+
+    try:
+        api_response = requests.get(endpoint, headers=headers, params=parameters)
+        api_response.raise_for_status()
+
+        response_data = api_response.json()
+        logger.debug(f"response_data_json:\{response_data}")
+        
+        participant_sets = response_data.get("participantSetsInfo", [])
+        result: list[dict] = []
+
+        for pset in participant_sets:
+            members = pset.get("memberInfos", [])
+
+            if len(members) == 0:
+                raise ValueError(f"participantSet '{pset.get('id', 'unknown')}' has no members")
+
+            if len(members) > 1:
+                logger.warning(
+                    f"participantSet '{pset.get('id', 'unknown')}' has {len(members)} members (expected 1)"
+                )
+
+            for member in members:
+                result.append({
+                    "email": member.get("email", ""),
+                    "name": member.get("name", "").strip(),
+                    "role": pset.get("role", ""),
+                    "order": pset.get("order", ""),
+                    "label": pset.get("label", "").strip(),
+                })
+        logger.debug(f"Fetched {len(result)} agreement participants for agreement {agreement_id}")
+        return result
+
+    except requests.exceptions.HTTPError as e:
+        logger.error(f"Error downloading documents: {e.response.status_code} - {e.response.text}")
+        raise APIError(f"Error downloading documents: {e.response.status_code} - {e.response.text}", status_code=e.response.status_code, original_exc=e)
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error downloading documents: {e}")
+        raise APIError(f"Error downloading documents: {e}", original_exc=e)
+
+    logger.debug(f"Downloaded agreement_id={agreement_id} size=?? no usar len() bytes")
+    return api_pdf_bytes
+    pass

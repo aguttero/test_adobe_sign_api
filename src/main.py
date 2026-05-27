@@ -44,7 +44,7 @@ days_per_year = {
 }
 
 # Storage Locations
-storage_config = dotenv_values.get('.env')
+storage_config = dotenv_values('.env')
 
 STORAGE_FOLDER = storage_config.get("STORAGE_FOLDER") # "storage/"
 JAD_PDF_FOLDER = storage_config.get("JAD_PDF_FOLDER") # "jad_pdf/"
@@ -343,7 +343,7 @@ def sync_agreements(date_range_start, date_range_end) -> Optional[int]:
 
 def download_documents(date_range_start, date_range_end, agreement_type:str):
     """
-    Downloads documents from api, saves to local storage and persists into database
+    Downloads documents and approvers from api, saves to local storage and persists into database
     Returns: quantity of pdf documents stored
     Raises?
     """
@@ -362,29 +362,36 @@ def download_documents(date_range_start, date_range_end, agreement_type:str):
     # target_wkflow_list = [5,6] # WFs 5,6 carry JAD process 
     target_agreement_list = db.fetch_agrmnt_by_wkflow(date_range_start, date_range_end, target_wkflow_list)
 
-    # ITERATE AGREEMENT LIST TO FETCH FROM API, STORE and UPDATE DOC INDEX TABLE
+    # ITERATE AGREEMENT LIST TO FETCH PDF FROM API, APPROVER INFO FROM API STORE and UPDATE DOC INDEX TABLE
     for agrmnt_id in target_agreement_list:
         counter = 0
         # ---DOWNLOAD AGREEMENT FROM API
-        api_pdf_bytes = api.download_agreement(agrmnt_id)
-
+        # api_pdf_bytes = api.download_agreement(agrmnt_id)
 
         # ---SAVE PDF TO FILE
         # STORE IN 'tmp_jad/agreement_id.pdf'
-        # Validate file does not exist
-        # if target_file_path.exists():
-            # logger.info("file already donwloaded")
-            # return algo (target_file_path?)
-        # Save as .tmp then validate downloaded ok then rename to .pdf
-        
-        target_file_path = f"{STORAGE_FOLDER}{JAD_PDF_FOLDER}{agrmnt_id}.pdf"
-        with open(target_file_path,"wb") as file:
-            file.write(api_pdf_bytes)
-        logger.debug(f"Saved to local file agreement_id: {STORAGE_FOLDER}{JAD_PDF_FOLDER}{agrmnt_id}.pdf")
+        # PENDING: Validate file does not exist
+        # PENDING: Save as .tmp then validate downloaded ok then rename to .pdf
+
+        # PROD CODE <---
+        # target_file_path = f"{STORAGE_FOLDER}{JAD_PDF_FOLDER}{agrmnt_id}.pdf"
+        # with open(target_file_path,"wb") as file:
+        #     file.write(api_pdf_bytes)
+        # logger.debug(f"Saved to local file agreement_id: {STORAGE_FOLDER}{JAD_PDF_FOLDER}{agrmnt_id}.pdf")
+
 
         # ---UPDATE DOCUMENT INDEX TABLE
-        db_file_status = "downloaded"
-        db.update_agrmnt_doc_status(agrmnt_id, agreement_type, db_file_status, JAD_PDF_FOLDER)
+        # db_file_status = "downloaded"
+        # db.update_agrmnt_doc_status(agrmnt_id, agreement_type, db_file_status, JAD_PDF_FOLDER)
+
+        # --- FETCH APPROVERS FROM API
+        api_response = api.fetch_approvers(agrmnt_id)
+
+        logger.debug(f"api_response= {api_response}")
+
+        # --- UPDATE APPROVER TABLE
+
+
 
         #--- PARSE DOCUMENT TO TOKENS
 
