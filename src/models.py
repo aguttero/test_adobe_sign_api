@@ -251,6 +251,12 @@ class AgreementSigner(Base):
     signer_label: Mapped[Optional[str]]
     signature_timestamp: Mapped[Optional[str]] # quitar el nullable=False
     signature_date: Mapped [Optional[dt.date]] # quitar el nullable=False
+    last_sync: Mapped[dt.date] = mapped_column(
+        Date,
+        default=dt.datetime.today,
+        onupdate=dt.datetime.today,
+        nullable=False
+    )
 
     agreement: Mapped["Agreement"] = relationship(back_populates="signers")
 

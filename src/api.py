@@ -463,6 +463,7 @@ def fetch_approvers(agreement_id:str):
     Raises:
         ValueError: If any participant set has zero members in ``memberInfos``.
         API Error: If the API call fails.
+    AG 2026 05 27
     """
     
     token: str = get_token_manager().get_token()
@@ -495,16 +496,15 @@ def fetch_approvers(agreement_id:str):
                     f"participantSet '{pset.get('id', 'unknown')}' has {len(members)} members (expected 1)"
                 )
 
-            for member in members:
-                result.append({
-                    "email": member.get("email", ""),
-                    "name": member.get("name", "").strip(),
-                    "role": pset.get("role", ""),
-                    "order": pset.get("order", ""),
-                    "label": pset.get("label", "").strip(),
-                })
-        logger.debug(f"Fetched {len(result)} agreement participants for agreement {agreement_id}")
-        return result
+            # for member in members[-1:]:
+            member = members[-1]
+            result.append({
+                "email": member.get("email", ""),
+                "name": member.get("name", "").strip(),
+                "role": pset.get("role", ""),
+                "order": pset.get("order", ""),
+                "label": pset.get("label", "").strip(),
+            })
 
     except requests.exceptions.HTTPError as e:
         logger.error(f"Error downloading documents: {e.response.status_code} - {e.response.text}")
@@ -513,6 +513,5 @@ def fetch_approvers(agreement_id:str):
         logger.error(f"Error downloading documents: {e}")
         raise APIError(f"Error downloading documents: {e}", original_exc=e)
 
-    logger.debug(f"Downloaded agreement_id={agreement_id} size=?? no usar len() bytes")
-    return api_pdf_bytes
-    pass
+    logger.debug(f"Fetched {len(result)} agreement participants for agreement {agreement_id}")
+    return result

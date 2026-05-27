@@ -737,6 +737,26 @@ def update_agrmnt_doc_parse_status (agreement_id:str, agreement_type:str, doc_fi
         else:
             logger.error(f"Agreement not found error: {agreement_id}")
 
+def update_approvers(agreement_id:str, api_response:list):
+    with _get_session() as session:
+        # --- SELECT RECORD TO UPDATE
+        stmt = select(models.Agreement).filter_by(agreement_id=agreement_id)
+        agrmnt_record = session.execute(stmt).scalar_one_or_none()
+        agrmnt_pkid = agrmnt_record.id
+
+        # --- ITERATE APPROVERS DICT and UPDATE AGREEMENT_SIGNER TABLE
+        for dict_item in api_response:
+            stmt = select(models.AgreementSigner).where(
+                models.AgreementSigner.agreement_id == agrmnt_pkid, 
+                models.AgreementSigner.signer_email == dict_item["email"])
+            signer_record = session.execute(stmt).scalar_one_or_none()
+            signer_record.signer_role = dict_item["role"]
+            signer_record.signer_order = dict_item["order"]
+            signer_record.signer_label = dict_item["label"]
+            signer_record.last_sync = date.today()
+            logger.debug(f"updating signer_pkid= {signer_record.id}, agreement_pkid {agrmnt_pkid}, email= {dict_item['email']}, role= {dict_item['role']}")
+        session.commit()
+    logger.debug(f"Updated agreement_pkid= {agrmnt_pkid}, agreement_id= {agreement_id}")
 
 
 # CREATED BY GEMINI - REVIEW

@@ -363,7 +363,7 @@ def download_documents(date_range_start, date_range_end, agreement_type:str):
     target_agreement_list = db.fetch_agrmnt_by_wkflow(date_range_start, date_range_end, target_wkflow_list)
 
     # ITERATE AGREEMENT LIST TO FETCH PDF FROM API, APPROVER INFO FROM API STORE and UPDATE DOC INDEX TABLE
-    for agrmnt_id in target_agreement_list:
+    for agrmnt_id in target_agreement_list[7:8]:
         counter = 0
         # ---DOWNLOAD AGREEMENT FROM API
         # api_pdf_bytes = api.download_agreement(agrmnt_id)
@@ -386,10 +386,12 @@ def download_documents(date_range_start, date_range_end, agreement_type:str):
 
         # --- FETCH APPROVERS FROM API
         api_response = api.fetch_approvers(agrmnt_id)
-
         logger.debug(f"api_response= {api_response}")
+        # PENDING: PARSE API_RESPONSE (current partial parsing being done inside api.function now) Move to separate parse function
+
 
         # --- UPDATE APPROVER TABLE
+        db.update_approvers(agrmnt_id, api_response)
 
 
 
