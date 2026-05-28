@@ -342,10 +342,10 @@ def sync_agreements(date_range_start, date_range_end) -> Optional[int]:
     return 999 # qty of new persisted agreements
 
 
-def download_documents(date_range_start, date_range_end, agreement_type:str):
+def download_documents(date_range_start, date_range_end, agreement_type:str)->list:
     """
     Downloads documents and approvers from api, saves to local storage and persists into database
-    Returns: quantity of pdf documents stored
+    Returns: list with donwloaded agreement_ids 
     Raises?
     """
     logger.debug(f"date_range_start= {date_range_start!r}, date_range_end= {date_range_end!r}")
@@ -362,13 +362,15 @@ def download_documents(date_range_start, date_range_end, agreement_type:str):
     target_wkflow_list = [6] # WFs 5,6 carry JAD process 
     # target_wkflow_list = [5,6] # WFs 5,6 carry JAD process 
     target_agreement_list = db.fetch_agrmnt_by_wkflow(date_range_start, date_range_end, target_wkflow_list)
-
+    downloaded_agreement_list = []
     # ITERATE AGREEMENT LIST TO FETCH PDF FROM API, APPROVER INFO FROM API STORE and UPDATE DOC INDEX TABLE
-    for agrmnt_id in target_agreement_list[7:8]:
+    for agrmnt_id in target_agreement_list[7:8]: # test agreement pkid=1195
         
         counter = 0
         # ---DOWNLOAD AGREEMENT FROM API
         # api_pdf_bytes = api.download_agreement(agrmnt_id)
+        # if api_pdf_bytes:
+            # downloaded_agreement_list.append(agrmnt_id)
 
         # ---SAVE PDF TO FILE
         # STORE IN 'tmp_jad/agreement_id.pdf'
@@ -387,8 +389,8 @@ def download_documents(date_range_start, date_range_end, agreement_type:str):
         # db.update_agrmnt_doc_status(agrmnt_id, agreement_type, db_file_status, JAD_PDF_FOLDER)
 
         # --- FETCH APPROVERS FROM API
-        api_response = api.fetch_approvers(agrmnt_id)
-        logger.debug(f"api_response= {api_response}")
+        # api_response = api.fetch_approvers(agrmnt_id)
+        # logger.debug(f"api_response= {api_response}")
         # PENDING: PARSE API_RESPONSE (current parsing is done inside api.function now) Move to separate parse function
 
 
@@ -406,25 +408,42 @@ def download_documents(date_range_start, date_range_end, agreement_type:str):
 
 
         #---UPDATE DOCUMENT INDEX TABLE
-        # db_file_status = "parsed"
-        # db.update_agrmnt_doc_parse_status(agrmnt_id,agreement_type, db_file_status, JAD_TXT_FOLDER)
-
+        db_file_status = "parsed"
+        db.update_agrmnt_doc_parse_status(agrmnt_id,agreement_type, db_file_status, JAD_TXT_FOLDER)
+        
 
         counter +=1
 
 
     logger.debug(f"Updated {counter} agreements")
 
-    counter = 0
-    
-    # descargar file y Audit trail por separado
-    # agregar a la tabla path del audit trail
+    # ----TEST CODE 
+    # downloaded_agreement_list = target_agreement_list gets assigned after the api call in this function
+    # ADD VALIDATION TO target list vs downloaded list
+    downloaded_agreement_list = target_agreement_list[7:8]
 
+    # ----TEST CODE 
+    logger.debug(f"Downloaded agreement list= {downloaded_agreement_list}")
+    return downloaded_agreement_list
 
-    # db.update_db_storage_index(target_file_path,agreement_type,target_agreement_id)
-    counter +=1
+def parse_documents(agreement_list:list):
+    # --- ITERATE LIST
+    for agreement_id in agreement_list:
+        # --- FETCH TXT FILE
+        word_list:list = parser.fetch_txt_file(agreement_id)
+        logger.debug(f"word_list_len= {len(word_list)}")
 
-    return counter    
+        # --- PARSE WORDS
+        result_dict:dict = parser.parse_jad_words(word_list)
+        # logger.debug(f"result_dict_len= {len(result_dict)}"
+        logger.debug(f"result_dict= {result_dict}")
+        
+
+        # --- STORE DATA IN DB TABLE
+        # --- UPDATE DOC STATUS TABLE
+        # --- LOG info
+    return 0
+
 
 
 def main() -> int:
@@ -609,16 +628,17 @@ def dev_main () -> int:
         # Search for JADs in DB, download, verify and index
 
         agreement_type = "JAD"
-        agreements_found = download_documents(date_range_start, date_range_end, agreement_type)
+        agreements_found:list = download_documents(date_range_start, date_range_end, agreement_type)
         # Validar si se guardaron todos o menos de los que encontrados
         # levantar error o warning
-        logger.info(f"Downloaded {agreements_found} documents out of xx in the list")
+        logger.info(f"Downloaded {len(agreements_found)} documents out of xx in the list")
 
 
-        # ----- PARSE STEP
+        # ----- PARSE STEP - FROM TOKENS TO FIELD DATA
         # fetch from DB new JAD agreement_id List
         # Loop JADS
-
+        parse_result = parse_documents(agreements_found)
+        logger.debug(f"parse_result= {parse_result}")
         
 
         # ------- FINAL VALIDATION AND CLOSE STEP

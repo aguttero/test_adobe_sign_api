@@ -718,8 +718,11 @@ def update_agrmnt_doc_parse_status (agreement_id:str, agreement_type:str, doc_fi
         # stmt = select(models.Document).filter_by(agreement_id=agrmnt_pkid)
         # doc_record = session.execute(stmt).scalar_one_or_none()
         # logger.debug(f"2 OK doc_record= {doc_record!r}")
+        # --- OLD CODE to fetch matching record from Document Table
 
         txt_file_path = f"{folder_name}{agreement_id}.txt"
+        
+        # --- OLD CODE to fetch matching record from Document Table
         # if doc_record:
         #     doc_record.txt_file_path = txt_file_path
         #     doc_record.parsed_ts = current_ts
@@ -728,6 +731,8 @@ def update_agrmnt_doc_parse_status (agreement_id:str, agreement_type:str, doc_fi
         #     logger.debug(f"Updated download lifecycle data for agreement: {agreement_id}, agreement_pk_id= {agrmnt_record.id!r}, doc_pk_id= {agrmnt_record.document.id} ts= {current_ts!r}")
         # else:
         #     logger.error(f"Agreement not found error: {agreement_id}")
+        # --- OLD CODE to fetch matching record from Document Table
+
         if agrmnt_record:
             agrmnt_record.document.txt_file_path = txt_file_path
             agrmnt_record.document.parsed_ts = current_ts
