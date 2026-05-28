@@ -14,6 +14,7 @@ from dotenv import dotenv_values
 import models
 import api
 import database as db
+import parser
 import utils
 import monitor
 from exceptions import AppError, APIError, DatabaseError, AuthError
@@ -364,6 +365,7 @@ def download_documents(date_range_start, date_range_end, agreement_type:str):
 
     # ITERATE AGREEMENT LIST TO FETCH PDF FROM API, APPROVER INFO FROM API STORE and UPDATE DOC INDEX TABLE
     for agrmnt_id in target_agreement_list[7:8]:
+        
         counter = 0
         # ---DOWNLOAD AGREEMENT FROM API
         # api_pdf_bytes = api.download_agreement(agrmnt_id)
@@ -387,17 +389,21 @@ def download_documents(date_range_start, date_range_end, agreement_type:str):
         # --- FETCH APPROVERS FROM API
         api_response = api.fetch_approvers(agrmnt_id)
         logger.debug(f"api_response= {api_response}")
-        # PENDING: PARSE API_RESPONSE (current partial parsing being done inside api.function now) Move to separate parse function
+        # PENDING: PARSE API_RESPONSE (current parsing is done inside api.function now) Move to separate parse function
 
 
         # --- UPDATE APPROVER TABLE
-        db.update_approvers(agrmnt_id, api_response)
-
+        # TEST agreement_id updated = 1195
+        # db.update_approvers(agrmnt_id, api_response)
 
 
         #--- PARSE DOCUMENT TO TOKENS
+        pdf_file_name = f"{agrmnt_id}.pdf"
+        word_list = parser.convert_pdf_to_words(pdf_file_name)
 
         #--- SAVE TXT TO FILE
+        parser.save_words_file(word_list, pdf_file_name)
+
 
         #---UPDATE DOCUMENT INDEX TABLE
         # db_file_status = "parsed"
