@@ -438,8 +438,12 @@ def parse_documents(agreement_list:list):
         # logger.debug(f"result_dict_len= {len(result_dict)}"
         logger.debug(f"result_dict= {result_dict}")
         
+        # --- STORE JAD CONTENT DATA IN DB TABLE
+        result = db.insert_jad_content(agreement_id, result_dict)
+        logger.debug(f"Jad DB table update result= {result}")
 
-        # --- STORE DATA IN DB TABLE
+
+        
         # --- UPDATE DOC STATUS TABLE
         # --- LOG info
     return 0

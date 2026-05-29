@@ -763,6 +763,31 @@ def update_approvers(agreement_id:str, api_response:list):
         session.commit()
     logger.debug(f"Updated agreement_pkid= {agrmnt_pkid}, agreement_id= {agreement_id}")
 
+def insert_jad_content(agreement_id:str, input_dict:dict)->int:
+    with _get_session() as session:
+        
+        # --- FETCH AGREEMENT PK_ID 
+        stmt = select(models.Agreement).filter_by(agreement_id=agreement_id)
+        agrmnt_record = session.execute(stmt).scalar_one_or_none()
+        agrmnt_pkid = agrmnt_record.id
+        logger.debug(f"Found agreement pkid= {agrmnt_pkid} for agreement_id= {agreement_id}")
+
+        # --- INSERT RECORD IN JAD_CONTENT TABLE
+        new_jad_record = models.JadContent(
+            agreement_id= agrmnt_pkid,
+            gerencia_solicitante= input_dict["gerencia_solicitante"],
+            rut_proveedor= input_dict["rut_proveedor"],
+            nombre_proveedor= input_dict["nombre_proveedor"],
+            monto_uf= input_dict["monto_uf"],
+            cuenta_contable= input_dict["cuenta_contable"],
+            centro_costo= input_dict["centro_costo"],
+            orden_controlling= input_dict["orden_controlling"]
+            # last_sync= date.today() - should be automatically updated by SQLA
+        )
+        session.add(new_jad_record)
+        logger.debug(f"Inserted JAD Content pkid= {agrmnt_record.jad_content.id}, agreement_pkid= {agrmnt_pkid}, agreement_id= {agreement_id}")
+        session.commit()
+    return 0
 
 # CREATED BY GEMINI - REVIEW
 def get_all_agreements_for_export() -> List[Dict[str, Any]]:

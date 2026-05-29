@@ -140,15 +140,16 @@ def parse_jad_words(tokens: list) -> dict:
         # Skip the full header v2: "Social Proveedor SI/NO" (3 tokens)
         header_end = idx + 3  # adjust if your header varies
         result["rut_proveedor"] = tokens[header_end]
+        logger.debug(f"rut_proveedor= {tokens[header_end]!r}")
 
     # --- Razón Social Proveedor(Company Name) ---
     # Company name starts right after the RUT value, ends at next anchor
-    if "rut" in result:
-        rut_idx = tokens.index(result["rut"])
+    if "rut_proveedor" in result:
+        rut_idx = tokens.index(result["rut_proveedor"])
         name_tokens, _ = extract_until_anchor_claude(
             tokens, rut_idx + 1, ["Proveedor", "Relacionado"]
         )
-        result["razon_social_proveedor"] = " ".join(name_tokens)
+        result["nombre_proveedor"] = " ".join(name_tokens)
         logger.debug(f"name_tokens= {name_tokens!r}")
 
     # --- Monto en UF (UF Amount) ---
@@ -186,7 +187,7 @@ def parse_jad_words(tokens: list) -> dict:
     # Orden Controlling starts right after the 'Cost Center' value, 1 token in lenght
     if "centro_costo" in result:
         orden_ctrl_idx = centro_costo_idx + 1
-        result["order_controlling"] = tokens[orden_ctrl_idx]
-        logger.debug(f"order_controlling= {result['order_controlling']!r}")
+        result["orden_controlling"] = tokens[orden_ctrl_idx]
+        logger.debug(f"orden_controlling= {result['orden_controlling']!r}")
 
     return result

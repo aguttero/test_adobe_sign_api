@@ -139,15 +139,18 @@ class Agreement(Base):
     group: Mapped[Optional[Group]] = relationship(back_populates="agreements")
     workflow: Mapped[Optional[Workflow]] = relationship(back_populates="agreements")
     
+    last_sync: Mapped[dt.date] = mapped_column(
+        Date,
+        default=dt.datetime.today,
+        onupdate=dt.datetime.today,
+    )
+
     # Document field content relationship
-    doc_field_contents: Mapped[List["DocFieldContent"]] = relationship (
-        back_populates="agreement",
-        cascade="all, delete-orphan")
-    signers: Mapped[List["AgreementSigner"]] = relationship(
-        back_populates="agreement",
-        cascade="all, delete-orphan")
+    doc_field_contents: Mapped[List["DocFieldContent"]] = relationship (back_populates="agreement", cascade="all, delete-orphan")
+    jad_content: Mapped["JadContent"] = relationship(back_populates="agreement",cascade="all, delete-orphan")
+    signers: Mapped[List["AgreementSigner"]] = relationship(back_populates="agreement", cascade="all, delete-orphan")
     # Document donwload relationship
-    document: Mapped["Document"] = relationship(back_populates="agreement")
+    document: Mapped["Document"] = relationship(back_populates="agreement", cascade="all, delete-orphan")
 
     def __repr__(self) -> str:
         return f"Agreement(name={self.name!r}, status={self.status!r}, created_date={self.created_date!r}, id={self.id!r})"
@@ -165,6 +168,30 @@ class DocFieldContent(Base):
     
     def __repr__(self) -> str:
         return f"DocFieldContent(pk_id={self.id!r}, fk_id={self.agreement_id!r})"
+
+class JadContent(Base):
+    """JAD type document content mapped to jad_content table"""
+    __tablename__ = "jad_content"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    agreement_id: Mapped[int] = mapped_column(ForeignKey("agreement.id"), index=True)
+    gerencia_solicitante: Mapped[Optional[str]]
+    rut_proveedor: Mapped[Optional[str]]
+    nombre_proveedor: Mapped[Optional[str]]
+    monto_uf: Mapped[Optional[float]]
+    cuenta_contable: Mapped[Optional[str]]
+    centro_costo: Mapped[Optional[str]]
+    orden_controlling: Mapped[Optional[str]]
+    last_sync: Mapped[dt.date] = mapped_column(
+        Date,
+        default=dt.datetime.today,
+        onupdate=dt.datetime.today,
+    )  
+    agreement: Mapped["Agreement"] = relationship(back_populates="jad_content")
+    
+    def __repr__(self) -> str:
+        return f"JadConten(pk_id={self.id!r}, fk_id={self.agreement_id!r})"
+
 
 class Document(Base):
     """Downloaded document information table"""
