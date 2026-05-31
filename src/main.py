@@ -6,19 +6,20 @@ It handles initialization, date range preparation, data synchronization (groups,
 and error handling. It ensures that pipeline steps are executed in the correct order
 and that exceptions are caught and logged appropriately.
 """
+
 import logging
 from datetime import date, datetime, timedelta
-from typing import List, Tuple, Optional
+from typing import List, Optional, Tuple
+
 from dotenv import dotenv_values
 
-import models
 import api
 import database as db
+import models
+import monitor
 import parser
 import utils
-import monitor
-from exceptions import AppError, APIError, DatabaseError, AuthError
-
+from exceptions import APIError, AppError, AuthError, DatabaseError
 
 # Module-level constants
 SECRETS_FOLDER: str = "client_secret/"
@@ -28,30 +29,29 @@ TEST_USER_LIST_FILENAME: str = f"{SECRETS_FOLDER}test_user_list_mock_v02.txt"
 
 # Default date range (should be read from DB in production)
 DEFAULT_LAST_DATE_RANGE_END: str = "2025-11-01T00:00:00Z"
-#DEFAULT_LAST_DATE_RANGE_END: str = "2026-04-15T00:00:00Z"
+# DEFAULT_LAST_DATE_RANGE_END: str = "2026-04-15T00:00:00Z"
 DAYS_TO_ADD_TO_RANGE: int = 61
 # 2020, 366 days
 days_per_year = {
-    '2020': 366,
-    '2021': 365,
-    '2022': 365,
-    '2023': 365,
-    '2024': 366,
-    '2025': 365,
-    '2026': 365,
-    '2027': 365,
-    '2028': 366
-
+    "2020": 366,
+    "2021": 365,
+    "2022": 365,
+    "2023": 365,
+    "2024": 366,
+    "2025": 365,
+    "2026": 365,
+    "2027": 365,
+    "2028": 366,
 }
 
 # Storage Locations
-storage_config = dotenv_values('.env')
+storage_config = dotenv_values(".env")
 
-STORAGE_FOLDER = storage_config.get("STORAGE_FOLDER") # "storage/"
-JAD_PDF_FOLDER = storage_config.get("JAD_PDF_FOLDER") # "jad_pdf/"
-JAD_TXT_FOLDER = storage_config.get("JAD_TXT_FOLDER") # "jad_txt/"
-CONTRACT_PDF_FOLDER = storage_config.get("CONTRACT_PDF_FOLDER") # "con_pdf/"
-CONTRACT_TXT_FOLDER = storage_config.get("CONTRACT_TXT_FOLDER") # "con_txt/"
+STORAGE_FOLDER = storage_config.get("STORAGE_FOLDER")  # "storage/"
+JAD_PDF_FOLDER = storage_config.get("JAD_PDF_FOLDER")  # "jad_pdf/"
+JAD_TXT_FOLDER = storage_config.get("JAD_TXT_FOLDER")  # "jad_txt/"
+CONTRACT_PDF_FOLDER = storage_config.get("CONTRACT_PDF_FOLDER")  # "con_pdf/"
+CONTRACT_TXT_FOLDER = storage_config.get("CONTRACT_TXT_FOLDER")  # "con_txt/"
 
 
 # Init Module-level logger
@@ -64,7 +64,7 @@ log_file_path = f"logs/{filestamp}.log"
 def _configure_logging() -> None:
     """Configure logging format once at startup."""
 
-    # MOVED THESE LINES TO # INIT Module-leve logger    
+    # MOVED THESE LINES TO # INIT Module-leve logger
     # now = datetime.now()
     # filestamp = now.strftime("%Y%m%d_%H_%M")
     # log_file_path = f"logs/{filestamp}.log"
@@ -72,14 +72,13 @@ def _configure_logging() -> None:
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.DEBUG)
 
-
     file_handler = logging.FileHandler(log_file_path)
     file_handler.setLevel(logging.DEBUG)
 
     logging.basicConfig(
         level=logging.DEBUG,
         format="%(asctime)s [%(levelname)s] %(module)s.%(funcName)s — %(message)s",
-        handlers=[console_handler, file_handler]
+        handlers=[console_handler, file_handler],
     )
     logger.debug("Finalized logging init and config")
 
@@ -93,7 +92,7 @@ def initialize_app():
     start_time: datetime = utils.get_current_timestamp()
     initial_agreement_count: int = 0
     sync_history_id: int = 0
-    
+
     logger.debug(f"run_id={run_id}, start_time={start_time}")
     return run_id, start_time, initial_agreement_count, sync_history_id
 
@@ -112,6 +111,7 @@ def compute_search_date_range(last_end_date_str: str) -> Tuple[str, str]:
     end_date_str: str = f"{end_date.date()}T00:00:00Z"
     logger.debug(f"Computed date range: {last_end_date_str} to {end_date_str}")
     return last_end_date_str, end_date_str
+
 
 def validate_range_in_past(range_end_date_str: str) -> bool:
     """Validate that the search range end date is in the past.
@@ -137,6 +137,7 @@ def validate_range_in_past(range_end_date_str: str) -> bool:
     )
     return False
 
+
 def prepare_date_range(last_sync_date_str: str) -> Tuple[str | None, str | None]:
     """Computes and validates the date range for the current sync.
 
@@ -158,6 +159,7 @@ def prepare_date_range(last_sync_date_str: str) -> Tuple[str | None, str | None]
     logger.info(f"Date range prepared: {new_start_date_str} to {new_end_date_str}")
     return new_start_date_str, new_end_date_str
 
+
 def sync_groups() -> Optional[int]:
     """Fetches, parses, and upserts group data into the database. Returns quantuty of groups found on success or raises APP ERROR on failure."""
     try:
@@ -170,19 +172,21 @@ def sync_groups() -> Optional[int]:
 
         parsed_groups = models.parse_groups(api_groups_list)
         db.upsert_groups(parsed_groups)
-        logger.info(f"Group synchronization completed successfully. Parsed {len(parsed_groups)} groups")
+        logger.info(
+            f"Group synchronization completed successfully. Parsed {len(parsed_groups)} groups"
+        )
         return len(parsed_groups)
 
     except Exception as e:
         logger.error(f"Failed to sync groups: {e}")
-        raise AppError (f"APP ERROR: Failed to sync groups: {e}")
+        raise AppError(f"APP ERROR: Failed to sync groups: {e}")
 
 
 def sync_workflows() -> Optional[int]:
-    """Fetches, parses, and upserts workflow data into the database. 
-    
-    Returns: quantity of workflows found on success or 
-    
+    """Fetches, parses, and upserts workflow data into the database.
+
+    Returns: quantity of workflows found on success or
+
     Raises: APP ERROR on failure."""
     try:
         api_workflow_list: list[dict] = api.fetch_all_workflows()
@@ -193,18 +197,21 @@ def sync_workflows() -> Optional[int]:
             raise AppError(f"APP ERROR: no workflows fetched")
 
         parsed_workflows = models.parse_workflows(api_workflow_list)
-        
+
         ### TEST CODE ###
         # logger.debug(f"parsed_workflows:\n{parsed_workflows}")
         ### TEST CODE ###
-       
+
         db.upsert_workflows(parsed_workflows)
-        logger.info(f"Worklow synchronization completed successfully. Parsed {len(parsed_workflows)} workflows")
+        logger.info(
+            f"Worklow synchronization completed successfully. Parsed {len(parsed_workflows)} workflows"
+        )
         return len(parsed_workflows)
 
     except Exception as e:
         logger.error(f"Failed to sync workflows: {e}")
-        raise AppError (f"APP ERROR: Failed to sync workflows: {e}")
+        raise AppError(f"APP ERROR: Failed to sync workflows: {e}")
+
 
 def sync_users() -> Optional[int]:
     """Fetches, transforms, and inserts new user data. Returns quantity of users found on success or raises APP ERROR on failure."""
@@ -214,7 +221,7 @@ def sync_users() -> Optional[int]:
         logger.debug(f"api user list len={len(api_user_list)}")
 
         # Business condition: handle empty user list
-        if len (api_user_list) == 0:
+        if len(api_user_list) == 0:
             logger.warning(f"Sync {len(api_user_list)} users")
             # determinar si raise APP ERROR
             return None
@@ -231,14 +238,15 @@ def sync_users() -> Optional[int]:
     except APIError as e:
         logger.error(f"API error during user sync: {e}")
         # Specific handling for invalid user could be added here if needed
-        raise APIError (f"API ERROR: {e}", original_exc=e)
+        raise APIError(f"API ERROR: {e}", original_exc=e)
     except Exception as e:
         logger.error(f"An unexpected error occurred during user sync: {e}")
-        raise AppError (f"APP ERROR: Failed to sync users: {e}")
+        raise AppError(f"APP ERROR: Failed to sync users: {e}")
 
-def search_agreements_users( user_list: List[dict],
-                            date_range_start: str,
-                            date_range_end: str) -> Tuple[int, int, int]:
+
+def search_agreements_users(
+    user_list: List[dict], date_range_start: str, date_range_end: str
+) -> Tuple[int, int, int]:
     """Search agreements for multiple users and persist to DB.
 
     Args:
@@ -252,8 +260,6 @@ def search_agreements_users( user_list: List[dict],
     pass
 
 
-
-
 def sync_agreements(date_range_start, date_range_end) -> Optional[int]:
     """Searches for and persists new agreements for all users in the database.
 
@@ -265,26 +271,30 @@ def sync_agreements(date_range_start, date_range_end) -> Optional[int]:
         Quantity of agreements or raises App Error.
     """
     logger.info("Starting agreement sync for all users in database")
-    logger.debug(f"date_range_start={date_range_start}, date_range_end= {date_range_end}")
+    logger.debug(
+        f"date_range_start={date_range_start}, date_range_end= {date_range_end}"
+    )
 
     # Get all users from database (exclude INVALID_USER status) list of dict with email and adobe_id
     all_valid_users: List[dict] = db.get_all_users(exclude_status="INVALID_USER")
 
     if len(all_valid_users) == 0:
         logger.warning(f"Sync {len(all_valid_users)} users")
-        raise AppError (f"APP ERROR: Found {len(all_valid_users)} valid users in DB")
+        raise AppError(f"APP ERROR: Found {len(all_valid_users)} valid users in DB")
 
-    logger.info(f"Found {len(all_valid_users)} valid users in database to search agreements for")
+    logger.info(
+        f"Found {len(all_valid_users)} valid users in database to search agreements for"
+    )
 
     # Search and persist agreements and signers for each user
     # Output: total_users, users_with_zero, users_with_agr qty of new agreements
     ### TEST CODE ### LIST SPLIT TO LIMIT ITERATIONS
-    #for user_dict in all_valid_users[:1]:
+    # for user_dict in all_valid_users[:1]:
     ### TEST CODE ###
 
     for user_dict in all_valid_users:
-        user_email = user_dict['email']
-        
+        user_email = user_dict["email"]
+
         ### TEST CODE ####
         # TO ASSIGN TEST USER from '.env'
         # from dotenv import dotenv_values
@@ -292,19 +302,23 @@ def sync_agreements(date_range_start, date_range_end) -> Optional[int]:
         # user_email = config.get('TEST_DEV_USER_EMAIL2')
         #### TEST CODE ####
 
-        user_sign_id = user_dict['adbe_sign_id']
-        
+        user_sign_id = user_dict["adbe_sign_id"]
+
         #### TEST CODE ####
         # logger.debug(f"user_email={user_email}, user_sign_id={user_sign_id}")
         #### TEST CODE ####
-        
+
         # SKIP API SEARCH FOR TEST
         try:
-            api_output = api.search_agreements_user(user_email, date_range_start, date_range_end)
+            api_output = api.search_agreements_user(
+                user_email, date_range_start, date_range_end
+            )
         except APIError as e:
             # CHECK for INVALID_USER error 401
             if "INVALID_USER" in str(e):
-                logger.debug(f"6 capturado e: {e}, str(e) = {str(e)}, stat_code={e.status_code}, original_exc={e.original_exc}")
+                logger.debug(
+                    f"6 capturado e: {e}, str(e) = {str(e)}, stat_code={e.status_code}, original_exc={e.original_exc}"
+                )
                 logger.warning(f"7 User {user_email} is invalid - marking in DB")
                 db.update_user_status_by_email(user_email, "INVALID_USER")
             else:
@@ -332,23 +346,25 @@ def sync_agreements(date_range_start, date_range_end) -> Optional[int]:
         # logger.debug(f"user_instance={user_instance}")
 
         # OLD insert agreement
-        insert_result = db.insert_agreements(api_output,user_instance.id)
-        #insert_result = db.insert_agreements(test_api_output,user_instance.id)
+        insert_result = db.insert_agreements(api_output, user_instance.id)
+        # insert_result = db.insert_agreements(test_api_output,user_instance.id)
         logger.info(f"Inserted {insert_result} agreements")
-        
+
     # total_users, users_with_zero, users_with_agr = api.search_agreements(all_valid_users, date_range_start, date_range_end)
     # logger.info(f"Agreement sync finished: {total_users} users searched, {users_with_zero} with zero agreements, {users_with_agr} with agreements")
-    
-    return 999 # qty of new persisted agreements
+
+    return 999  # qty of new persisted agreements
 
 
-def download_documents(date_range_start, date_range_end, agreement_type:str)->list:
+def download_documents(date_range_start, date_range_end, agreement_type: str) -> list:
     """
     Downloads documents and approvers from api, saves to local storage and persists into database
-    Returns: list with donwloaded agreement_ids 
+    Returns: list with donwloaded agreement_ids
     Raises?
     """
-    logger.debug(f"date_range_start= {date_range_start!r}, date_range_end= {date_range_end!r}")
+    logger.debug(
+        f"date_range_start= {date_range_start!r}, date_range_end= {date_range_end!r}"
+    )
 
     ### TEST CODE 1 ###
     # from dotenv import dotenv_values
@@ -359,18 +375,19 @@ def download_documents(date_range_start, date_range_end, agreement_type:str)->li
 
     # FETCH AGREEMENT LIST FROM DB
     # Obtain list of agreements id to download from API
-    target_wkflow_list = [6] # WFs 5,6 carry JAD process 
-    # target_wkflow_list = [5,6] # WFs 5,6 carry JAD process 
-    target_agreement_list = db.fetch_agrmnt_by_wkflow(date_range_start, date_range_end, target_wkflow_list)
+    target_wkflow_list = [6]  # WFs 5,6 carry JAD process
+    # target_wkflow_list = [5,6] # WFs 5,6 carry JAD process
+    target_agreement_list = db.fetch_agrmnt_by_wkflow(
+        date_range_start, date_range_end, target_wkflow_list
+    )
     downloaded_agreement_list = []
     # ITERATE AGREEMENT LIST TO FETCH PDF FROM API, APPROVER INFO FROM API STORE and UPDATE DOC INDEX TABLE
-    for agrmnt_id in target_agreement_list[7:8]: # test agreement pkid=1195
-        
+    for agrmnt_id in target_agreement_list[7:8]:  # test agreement pkid=1195
         counter = 0
         # ---DOWNLOAD AGREEMENT FROM API
         # api_pdf_bytes = api.download_agreement(agrmnt_id)
         # if api_pdf_bytes:
-            # downloaded_agreement_list.append(agrmnt_id)
+        # downloaded_agreement_list.append(agrmnt_id)
 
         # ---SAVE PDF TO FILE
         # STORE IN 'tmp_jad/agreement_id.pdf'
@@ -383,7 +400,6 @@ def download_documents(date_range_start, date_range_end, agreement_type:str)->li
         #     file.write(api_pdf_bytes)
         # logger.debug(f"Saved to local file agreement_id: {STORAGE_FOLDER}{JAD_PDF_FOLDER}{agrmnt_id}.pdf")
 
-
         # ---UPDATE DOCUMENT INDEX TABLE
         # db_file_status = "downloaded"
         # db.update_agrmnt_doc_status(agrmnt_id, agreement_type, db_file_status, JAD_PDF_FOLDER)
@@ -393,72 +409,71 @@ def download_documents(date_range_start, date_range_end, agreement_type:str)->li
         # logger.debug(f"api_response= {api_response}")
         # PENDING: PARSE API_RESPONSE (current parsing is done inside api.function now) Move to separate parse function
 
-
         # --- UPDATE APPROVER TABLE
         # TEST agreement_id updated = 1195
         # db.update_approvers(agrmnt_id, api_response)
 
-
-        #--- PARSE DOCUMENT TO TOKENS
+        # --- PARSE DOCUMENT TO TOKENS
         pdf_file_name = f"{agrmnt_id}.pdf"
         word_list = parser.convert_pdf_to_words(pdf_file_name)
 
-        #--- SAVE TXT TO FILE
+        # --- SAVE TXT TO FILE
         parser.save_words_file(word_list, pdf_file_name)
 
-
-        #---UPDATE DOCUMENT INDEX TABLE
+        # ---UPDATE DOCUMENT INDEX TABLE
         db_file_status = "parsed"
-        db.update_agrmnt_doc_parse_status(agrmnt_id,agreement_type, db_file_status, JAD_TXT_FOLDER)
-        
+        db.update_agrmnt_doc_parse_status(
+            agrmnt_id, agreement_type, db_file_status, JAD_TXT_FOLDER
+        )
 
-        counter +=1
-
+        counter += 1
 
     logger.debug(f"Updated {counter} agreements")
 
-    # ----TEST CODE 
+    # ----TEST CODE
     # downloaded_agreement_list = target_agreement_list gets assigned after the api call in this function
     # ADD VALIDATION TO target list vs downloaded list
     downloaded_agreement_list = target_agreement_list[7:8]
 
-    # ----TEST CODE 
+    # ----TEST CODE
     logger.debug(f"Downloaded agreement list= {downloaded_agreement_list}")
     return downloaded_agreement_list
 
-def parse_documents(agreement_list:list):
+
+def parse_documents(agreement_list: list):
     # --- ITERATE LIST
     for agreement_id in agreement_list:
         # --- FETCH TXT FILE
-        word_list:list = parser.fetch_txt_file(agreement_id)
+        word_list: list = parser.fetch_txt_file(agreement_id)
         logger.debug(f"word_list_len= {len(word_list)}")
 
         # --- PARSE WORDS
-        result_dict:dict = parser.parse_jad_words(word_list)
+        result_dict: dict = parser.parse_jad_words(word_list)
         # logger.debug(f"result_dict_len= {len(result_dict)}"
         logger.debug(f"result_dict= {result_dict}")
-        
+
         # --- STORE JAD CONTENT DATA IN DB TABLE
         result = db.insert_jad_content(agreement_id, result_dict)
         logger.debug(f"Jad DB table update result= {result}")
 
-
-        
         # --- UPDATE DOC STATUS TABLE
+        doc_file_status = "TOKENIZED"
+        result = db.update_agrmnt_doc_token_status(agreement_id, doc_file_status)
+        logger.debug(f"Agrmtn status update result= {result}")
+
         # --- LOG info
     return 0
 
 
-
 def main() -> int:
     """Main entry point for the application orchestrates the sync process."""
-    
+
     # Init Logger config and run and time stamps
     run_id, start_time, initial_agreement_count, sync_history_id = initialize_app()
 
     # Prepare the date range for the sync process
     date_range_start, date_range_end = prepare_date_range(DEFAULT_LAST_DATE_RANGE_END)
-    
+
     if date_range_start is None or date_range_end is None:
         # Date range preparation failed, error already logged in prepare_date_range
         return 1
@@ -467,74 +482,78 @@ def main() -> int:
         # Insert SyncHistory record at the start of the run
         try:
             sync_history_id = db.insert_sync_history(
-                run_id=run_id,
-                range_start=date_range_start,
-                range_end=date_range_end
+                run_id=run_id, range_start=date_range_start, range_end=date_range_end
             )
             logger.info(f"Starting main execution - Run ID: {run_id}")
             logger.info(f"Start time: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
         except Exception as e:
             logger.critical(f"Failed to create sync history record: {e} - exiting")
-            return 1    
+            return 1
 
         # Get initial agreement count for rollback tracking
         try:
             initial_agreement_count = db.get_agreement_count()
             logger.debug(f"Initial agreement count: {initial_agreement_count}")
         except DatabaseError as e:
-            logger.error(f"Initial agreement count failed: {e}. Caused by: {e.original_exc}")
+            logger.error(
+                f"Initial agreement count failed: {e}. Caused by: {e.original_exc}"
+            )
             # Define Business decision to do next
             # fall back procedure
             return 1
 
-
-    
         # === EXECUTE PIPELINE STEPS ===
         group_sync_status = sync_groups()
         user_sync_status = sync_users()
         agreement_sync_status = sync_agreements()
 
         # Determine overall success status based on individual step statuses
-        overall_sync_ok = (group_sync_status == 0 and 
-                           user_sync_status == 0 and 
-                           agreement_sync_status == 0)
+        overall_sync_ok = (
+            group_sync_status == 0
+            and user_sync_status == 0
+            and agreement_sync_status == 0
+        )
 
-        # === FINALIZE === 
+        # === FINALIZE ===
         # Calculate elapsed time
         end_time: datetime = utils.get_current_timestamp()
         hours, minutes, seconds = utils.calculate_elapsed_time(start_time, end_time)
         elapsed_str: str = utils.format_elapsed_time(hours, minutes, seconds)
-        end_time_str: str = end_time.strftime('%Y-%m-%d %H:%M:%S')
-        
+        end_time_str: str = end_time.strftime("%Y-%m-%d %H:%M:%S")
+
         # Get final agreement count
         final_agreement_count = db.get_agreement_count()
         agreements_found = final_agreement_count - initial_agreement_count
-        
+
         # Update SyncHistory with overall success status
         log_file_path = "logs/test_log.log"
         log_lines = monitor.read_recent_log_lines(log_file_path)
         log_counts = monitor.count_log_records_by_level(log_lines)
-        
+
         try:
             db.update_sync_history(
                 lookup_run_id=sync_history_id,
                 agreements_found=agreements_found,
-                sync_ok=overall_sync_ok, # Reflect the actual success status of all sync steps
+                sync_ok=overall_sync_ok,  # Reflect the actual success status of all sync steps
                 elapsed_time=elapsed_str,
                 end_time=end_time_str,
                 error_qty=log_counts.get("ERROR", 0),
                 warning_qty=log_counts.get("WARNING", 0),
-                critical_qty=log_counts.get("CRITICAL", 0)
+                critical_qty=log_counts.get("CRITICAL", 0),
             )
         except Exception as e:
             logger.warning(f"Failed to update sync history: {e}")
-        
-        logger.info(f"Main execution completed. Overall status: {'Success' if overall_sync_ok else 'Failed'}")
+
+        logger.info(
+            f"Main execution completed. Overall status: {'Success' if overall_sync_ok else 'Failed'}"
+        )
         logger.info(f"End time: {end_time_str}")
         logger.info(f"Elapsed time: {elapsed_str}")
         logger.info(f"Agreements found: {agreements_found}")
-        logger.info(f"Run ID: {run_id} - {'COMPLETED' if overall_sync_ok else 'FAILED'}")
-        
+        logger.info(
+            f"Run ID: {run_id} - {'COMPLETED' if overall_sync_ok else 'FAILED'}"
+        )
+
         return 0 if overall_sync_ok else 1
 
     except AuthError as e:
@@ -558,7 +577,8 @@ def main() -> int:
         _handle_failure(sync_history_id, initial_agreement_count, start_time, run_id)
         return 1
 
-def dev_main () -> int:
+
+def dev_main() -> int:
     # Init Logger config and run and time stamps
     run_id, start_time, initial_agreement_count, sync_history_id = initialize_app()
     logger.info(f"DEV_MAIN START")
@@ -566,7 +586,7 @@ def dev_main () -> int:
     # Prepare the date range for the sync process
     date_range_start, date_range_end = prepare_date_range(DEFAULT_LAST_DATE_RANGE_END)
     # OK logger.debug (f"date_range_start={date_range_start}, date_range_end={date_range_end}")
-    
+
     # This if is here to save the type error in Insert SyncHistory step
     if date_range_start is None or date_range_end is None:
         # Date range preparation failed, error already logged in prepare_date_range
@@ -575,23 +595,29 @@ def dev_main () -> int:
     # Insert SyncHistory record at the start of the run
     try:
         sync_history_id = db.insert_sync_history(
-                    run_id=run_id,
-                    range_start=date_range_start,
-                    range_end=date_range_end
-                )
-        logger.info(f"Starting main execution - Run ID: {run_id} - Start time: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+            run_id=run_id, range_start=date_range_start, range_end=date_range_end
+        )
+        logger.info(
+            f"Starting main execution - Run ID: {run_id} - Start time: {start_time.strftime('%Y-%m-%d %H:%M:%S')}"
+        )
     except DatabaseError as e:
-        logger.critical(f"Failed to create sync history record: {e} Caused by: {e.original_exc} - exiting")
+        logger.critical(
+            f"Failed to create sync history record: {e} Caused by: {e.original_exc} - exiting"
+        )
         # Define Business decision to do next
         # fall back procedure
-        return 1   
+        return 1
 
     # Get initial agreement count for rollback tracking
     try:
         initial_agreement_count = db.get_agreement_count()
-        logger.info(f"Rollback safety net init: Initial agreement count: {initial_agreement_count}")
+        logger.info(
+            f"Rollback safety net init: Initial agreement count: {initial_agreement_count}"
+        )
     except DatabaseError as e:
-        logger.critical(f"Could not get initial agreement count: {e}. Caused by: {e.original_exc} - exiting")
+        logger.critical(
+            f"Could not get initial agreement count: {e}. Caused by: {e.original_exc} - exiting"
+        )
         # Define Business decision to do next
         # fall back procedure
         return 1
@@ -604,7 +630,7 @@ def dev_main () -> int:
         # if not result_groups_sync:
         #     logger.warning(f"Synced {result_groups_sync} groups. - exiting")
         #     return 1
-        
+
         # WORKFLOW SYNC
         # result_wkflow_sync = sync_workflows()
         # logger.debug(f"Pipe 2. result_wkflow_sync={result_wkflow_sync}")
@@ -618,7 +644,7 @@ def dev_main () -> int:
         # if not result_users_sync:
         #    logger.warning(f"Synced {result_users_sync} users. - exiting")
         #    return 1
-        
+
         # AGREEMENT SYNC
         # result_agreement_sync = sync_agreements(date_range_start,date_range_end)
         # logger.debug(f"Pipe 4. result_agreement_sync={result_agreement_sync}")
@@ -626,30 +652,31 @@ def dev_main () -> int:
         #     logger.warning(f"Synced {result_agreement_sync} groups. - exiting")
         #     return 1
 
-
         ### DOWNLOAD STAGE #####
         # ----- DOWNLOAD AND PARSE TO TOKENS STEP
         # Search for JADs in DB, download, verify and index
 
         agreement_type = "JAD"
-        agreements_found:list = download_documents(date_range_start, date_range_end, agreement_type)
+        agreements_found: list = download_documents(
+            date_range_start, date_range_end, agreement_type
+        )
         # Validar si se guardaron todos o menos de los que encontrados
         # levantar error o warning
-        logger.info(f"Downloaded {len(agreements_found)} documents out of xx in the list")
-
+        logger.info(
+            f"Downloaded {len(agreements_found)} documents out of xx in the list"
+        )
 
         # ----- PARSE STEP - FROM TOKENS TO FIELD DATA
         # fetch from DB new JAD agreement_id List
         # Loop JADS
         parse_result = parse_documents(agreements_found)
         logger.debug(f"parse_result= {parse_result}")
-        
 
         # ------- FINAL VALIDATION AND CLOSE STEP
         # Determine overall success status based on individual step statuses
         overall_sync_ok = True
-        # overall_sync_ok = (group_sync_status == 0 and 
-        #                    user_sync_status == 0 and 
+        # overall_sync_ok = (group_sync_status == 0 and
+        #                    user_sync_status == 0 and
         #                    agreement_sync_status == 0)
 
         # UPDATE AND CLOSE DB SYNC TABLE
@@ -657,7 +684,7 @@ def dev_main () -> int:
         end_time: datetime = utils.get_current_timestamp()
         hours, minutes, seconds = utils.calculate_elapsed_time(start_time, end_time)
         elapsed_str: str = utils.format_elapsed_time(hours, minutes, seconds)
-        end_time_str: str = end_time.strftime('%Y-%m-%d %H:%M:%S')
+        end_time_str: str = end_time.strftime("%Y-%m-%d %H:%M:%S")
 
         # Get final agreement count
         final_agreement_count = db.get_agreement_count()
@@ -672,24 +699,27 @@ def dev_main () -> int:
             db.update_sync_history(
                 lookup_run_id=sync_history_id,
                 agreements_found=agreements_found,
-                sync_ok=overall_sync_ok, # Reflect the actual success status of all sync steps
+                sync_ok=overall_sync_ok,  # Reflect the actual success status of all sync steps
                 elapsed_time=elapsed_str,
                 end_time=end_time_str,
                 error_qty=log_counts.get("ERROR", 0),
                 warning_qty=log_counts.get("WARNING", 0),
-                critical_qty=log_counts.get("CRITICAL", 0)
+                critical_qty=log_counts.get("CRITICAL", 0),
             )
         except Exception as e:
             logger.warning(f"Failed to update sync history: {e}")
-        
-        logger.info(f"Main execution completed. Overall status: {'Success' if overall_sync_ok else 'Failed'}")
+
+        logger.info(
+            f"Main execution completed. Overall status: {'Success' if overall_sync_ok else 'Failed'}"
+        )
         logger.info(f"End time: {end_time_str}")
         logger.info(f"Elapsed time: {elapsed_str}")
         logger.info(f"Agreements found: {agreements_found}")
-        logger.info(f"Run ID: {run_id} - {'COMPLETED' if overall_sync_ok else 'FAILED'}")
-        
-        return 0 if overall_sync_ok else 1
+        logger.info(
+            f"Run ID: {run_id} - {'COMPLETED' if overall_sync_ok else 'FAILED'}"
+        )
 
+        return 0 if overall_sync_ok else 1
 
     except AuthError as e:
         logger.error(f"Authentication failed: {e}")
@@ -697,22 +727,26 @@ def dev_main () -> int:
         # Define Business decision to do next
         # fall back procedure
     except DatabaseError as e:
-        logger.critical(f"Could not sync groups: {e}. Caused by: {e.original_exc} - exiting")
+        logger.critical(
+            f"Could not sync groups: {e}. Caused by: {e.original_exc} - exiting"
+        )
         return 1
     except APIError as e:
-        logger.critical(f"Could not sync groups: {e}. Caused by: {e.original_exc} - exiting")
+        logger.critical(
+            f"Could not sync groups: {e}. Caused by: {e.original_exc} - exiting"
+        )
         # Define Business decision to do next
         # fall back procedure
     except AppError as e:
         logger.critical(f"Could not sync groups: {e}. - exiting")
         # Define Business decision to do next
 
-
     logger.debug(f"DEV_MAIN END")
     return 0
+
 
 if __name__ == "__main__":
     exit_code: int = dev_main()
     logging.info(f"Logging Exit code: {exit_code}")
-    print (f"exit code: {exit_code}")
+    print(f"exit code: {exit_code}")
     exit(exit_code)

@@ -1,14 +1,14 @@
 import logging
 from datetime import date, datetime
-from typing import List, Optional, Type, Dict, Any
-from sqlalchemy import create_engine, select, insert, or_
-from sqlalchemy.orm import sessionmaker, Session
+from typing import Any, Dict, List, Optional, Type
+
+from sqlalchemy import create_engine, insert, or_, select
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session, sessionmaker
 
 import models
 import utils
 from exceptions import DatabaseError
-
 
 logger = logging.getLogger(__name__)
 
@@ -54,10 +54,10 @@ def update_user_status_by_email(searched_email: str, new_status: str) -> None:
 
 def upsert_users(user_list: List[dict]) -> None:
     """Upserts User table using email as the natural key.
-    
+
     Uses session.merge to INSERT new users (email not yet in DB)
     or UPDATE existing users (matched by email).
-    
+
     Args:
         user_list: List of dicts with 'email' and 'adbe_sign_id' keys.
     """
@@ -65,8 +65,8 @@ def upsert_users(user_list: List[dict]) -> None:
         try:
             for dict_item in user_list:
                 new_item = models.User(
-                    email=dict_item.get('email'),
-                    adbe_sign_id=dict_item.get('adbe_sign_id')
+                    email=dict_item.get("email"),
+                    adbe_sign_id=dict_item.get("adbe_sign_id"),
                 )
                 session.merge(new_item)
             session.commit()
@@ -76,17 +76,18 @@ def upsert_users(user_list: List[dict]) -> None:
             logger.error(f"Failed to upsert users: {e}")
             raise DatabaseError(f"Failed to upsert users: {e}", original_exc=e)
 
+
 def convert_txt_to_list(filename: str) -> List[dict]:
     """Converts file.txt user list to python list.
-    
+
     Args:
         filename: Path to the text file containing user list.
-        
+
     Returns:
         List of user dictionaries parsed from file.
     """
     import ast
-    
+
     try:
         with open(filename, "r") as file:
             file_content = file.read()
@@ -99,30 +100,29 @@ def convert_txt_to_list(filename: str) -> List[dict]:
         logger.error(f"Failed to read user list file: {e}")
         raise DatabaseError(f"Failed to read user list file: {e}", original_exc=e)
 
+
 def transform_user_list_keys(input_list: List[dict]) -> List[dict]:
     """Transforms user_list dict keys from Adobe Sign API format to app Database format.
-    
+
     Strips and lowercases email addresses. Converts 'id' key to 'adbe_sign_id'.
-    
+
     Args:
         input_list: List of dicts from Adobe Sign API with 'email' and 'id' keys.
-        
+
     Returns:
         List of dicts with 'email' (normalized) and 'adbe_sign_id' keys.
     """
     transformed_list = [
-        {
-            'email': item['email'].strip().lower(),
-            'adbe_sign_id': item['id']
-        }
+        {"email": item["email"].strip().lower(), "adbe_sign_id": item["id"]}
         for item in input_list
     ]
     logger.debug(f"OK Transformed {len(transformed_list)} records")
     return transformed_list
 
+
 def bulk_insert_list(table_name: Type[models.Base], input_list: List[dict]) -> None:
     """Bulk insert input_list into table for initial table load.
-    
+
     Args:
         table_name: The SQLAlchemy model class to insert into.
         input_list: List of dictionaries representing rows to insert.
@@ -131,11 +131,14 @@ def bulk_insert_list(table_name: Type[models.Base], input_list: List[dict]) -> N
         try:
             session.execute(insert(table_name), input_list)
             session.commit()
-            logger.info(f"OK insert {len(input_list)} records into {table_name.__name__}")
+            logger.info(
+                f"OK insert {len(input_list)} records into {table_name.__name__}"
+            )
         except SQLAlchemyError as e:
             session.rollback()
             logger.error(f"SQLA error during bulk insert: {e}")
             raise DatabaseError(f"SQLA error during bulk insert: {e}", original_exc=e)
+
 
 def get_existing_emails() -> List[str]:
     """Fetch all existing email addresses from the User table.
@@ -152,6 +155,7 @@ def get_existing_emails() -> List[str]:
             logger.error(f"Failed to fetch existing emails: {e}")
             raise DatabaseError(f"Failed to fetch existing emails: {e}", original_exc=e)
 
+
 def get_all_users(exclude_status: Optional[str] = None) -> List[dict]:
     """Fetch all users from the User table.
 
@@ -166,7 +170,10 @@ def get_all_users(exclude_status: Optional[str] = None) -> List[dict]:
             if exclude_status:
                 # Exclude users with specific status, but include NULL status
                 stmt = select(models.User).filter(
-                    or_(models.User.status != exclude_status, models.User.status.is_(None))
+                    or_(
+                        models.User.status != exclude_status,
+                        models.User.status.is_(None),
+                    )
                 )
             else:
                 stmt = select(models.User)
@@ -181,40 +188,42 @@ def get_all_users(exclude_status: Optional[str] = None) -> List[dict]:
             logger.error(f"Failed to fetch all users: {e}")
             raise DatabaseError(f"Failed to fetch all users: {e}", original_exc=e)
 
+
 def filter_new_users(existing_emails: List[str], input_list: List[dict]) -> List[dict]:
     """Filter input_list to only include users not already in the database.
-    
+
     Args:
         existing_emails: List of emails already present in the database.
         input_list: Full list of user dictionaries to filter.
-        
+
     Returns:
         List of user dictionaries that are new (not in existing_emails).
     """
     new_users_list = [
-        item for item in input_list
-        if item['email'] not in existing_emails
+        item for item in input_list if item["email"] not in existing_emails
     ]
     logger.debug(f"OK Found {len(new_users_list)} new users to insert")
     return new_users_list
 
+
 def insert_new_items_by_email_key(input_list: List[dict]) -> None:
     """Insert new users from input_list that don't already exist in the User table.
-    
+
     Compares input list against existing database records and inserts only new users.
     Uses email as the unique key for comparison.
-    
+
     Args:
         input_list: List of user dictionaries with 'email' and 'adbe_sign_id' keys.
     """
     existing_emails = get_existing_emails()
     new_users = filter_new_users(existing_emails, input_list)
-    
+
     if new_users:
         bulk_insert_list(models.User, new_users)
         logger.info(f"Inserted {len(new_users)} new users")
     else:
         logger.info("No new users to insert")
+
 
 def get_user_by_email(user_email: str) -> models.User:
     """Fetch a user by email address.
@@ -235,6 +244,7 @@ def get_user_by_email(user_email: str) -> models.User:
             logger.error(f"Failed to fetch user by email: {e}")
             raise DatabaseError(f"Failed to fetch user by email: {e}", original_exc=e)
 
+
 def get_user_by_adbe_sign_id(adbe_sign_id: str) -> models.User:
     """Fetch a user by Adobe Sign ID.
 
@@ -252,7 +262,10 @@ def get_user_by_adbe_sign_id(adbe_sign_id: str) -> models.User:
             return user
         except SQLAlchemyError as e:
             logger.error(f"Failed to fetch user by adbe_sign_id: {e}")
-            raise DatabaseError(f"Failed to fetch user by adbe_sign_id: {e}", original_exc=e)
+            raise DatabaseError(
+                f"Failed to fetch user by adbe_sign_id: {e}", original_exc=e
+            )
+
 
 def parse_date(date_str: str) -> date:
     """Parse date string to YYYY-MM-DD format for SQLite.
@@ -264,7 +277,9 @@ def parse_date(date_str: str) -> date:
         Date string in YYYY-MM-DD format.
     """
     # Convert string to date object
-    date_time_obj = datetime.fromisoformat(date_str.replace("Z", "+00:00")) # Handle Z for UTC
+    date_time_obj = datetime.fromisoformat(
+        date_str.replace("Z", "+00:00")
+    )  # Handle Z for UTC
 
     # Convert naive date + time to date object
     date_obj = date_time_obj.date()
@@ -291,11 +306,15 @@ def insert_agreements(agreement_list: List[dict], user_id: int) -> int:
         try:
             for agr in agreement_list:
                 # Check if agreement already exists (by agreement_id)
-                stmt = select(models.Agreement).filter_by(agreement_id=agr.get("agreement_id"))
+                stmt = select(models.Agreement).filter_by(
+                    agreement_id=agr.get("agreement_id")
+                )
                 existing = session.execute(stmt).scalar_one_or_none()
 
                 if existing:
-                    logger.debug(f"Agreement {agr.get('agreement_id')} already exists, skipping")
+                    logger.debug(
+                        f"Agreement {agr.get('agreement_id')} already exists, skipping"
+                    )
                     continue
 
                 # Lookup Group FK from API groupId
@@ -306,12 +325,14 @@ def insert_agreements(agreement_list: List[dict], user_id: int) -> int:
                     group = session.execute(group_stmt).scalar_one_or_none()
                     if group:
                         group_fk = group.id
-                
+
                 # Lookup Worfflow FK from API groupId
                 api_workflow_id = agr.get("workflow_id", "")
                 workflow_fk = None
                 if api_workflow_id:
-                    wkflow_stmt = select(models.Workflow).filter_by(workflow_id=api_workflow_id)
+                    wkflow_stmt = select(models.Workflow).filter_by(
+                        workflow_id=api_workflow_id
+                    )
                     workflow = session.execute(wkflow_stmt).scalar_one_or_none()
                     if workflow:
                         workflow_fk = workflow.id
@@ -322,12 +343,12 @@ def insert_agreements(agreement_list: List[dict], user_id: int) -> int:
                     name=agr.get("name", ""),
                     type="AGREEMENT",
                     status=agr.get("status", ""),
-                    #workflow_id_ref=agr.get("workflow_id", ""),
+                    # workflow_id_ref=agr.get("workflow_id", ""),
                     workflow_id_ref=workflow_fk,
                     group_id_ref=group_fk,
                     created_date=parse_date(agr.get("created_date", "")),
                     modified_date=parse_date(agr.get("modified_date", "")),
-                    user_id=user_id
+                    user_id=user_id,
                 )
                 session.add(new_agreement)
                 session.flush()  # Get the agreement ID
@@ -339,7 +360,7 @@ def insert_agreements(agreement_list: List[dict], user_id: int) -> int:
                         agreement_id=new_agreement.id,
                         signer_email=signer.get("signer_email", ""),
                         signer_full_name=signer.get("signer_full_name", ""),
-                        signer_role=signer.get("signer_role", "")
+                        signer_role=signer.get("signer_role", ""),
                     )
                     session.add(new_signer)
 
@@ -371,13 +392,12 @@ def agreement_exists(agreement_id: str) -> bool:
             return exists
         except SQLAlchemyError as e:
             logger.error(f"Failed to check agreement existence: {e}")
-            raise DatabaseError(f"Failed to check agreement existence: {e}", original_exc=e)
+            raise DatabaseError(
+                f"Failed to check agreement existence: {e}", original_exc=e
+            )
 
-def insert_sync_history(
-    run_id: str,
-    range_start: str,
-    range_end: str
-) -> str:
+
+def insert_sync_history(run_id: str, range_start: str, range_end: str) -> str:
     """Insert a new SyncHistory record at the start of execution.
 
     Args:
@@ -405,16 +425,19 @@ def insert_sync_history(
                 critical_found=False,
                 error_qty=0,
                 warning_qty=0,
-                critical_qty=0
+                critical_qty=0,
             )
             session.add(sync_record)
             session.commit()
-            logger.debug(f"Inserted SyncHistory record with ID: {sync_record.run_id}, PK_ID: {sync_record.id}")
+            logger.debug(
+                f"Inserted SyncHistory record with ID: {sync_record.run_id}, PK_ID: {sync_record.id}"
+            )
             return sync_record.run_id
     except SQLAlchemyError as e:
         session.rollback()
         logger.error(f"Failed to insert SyncHistory: {e}")
         raise DatabaseError(f"Failed to insert SyncHistory: {e}", original_exc=e)
+
 
 def update_sync_history(
     lookup_run_id: str,
@@ -424,7 +447,7 @@ def update_sync_history(
     end_time: str,
     error_qty: int = 0,
     warning_qty: int = 0,
-    critical_qty: int = 0
+    critical_qty: int = 0,
 ) -> None:
     """Update SyncHistory record at the end of execution.
 
@@ -455,7 +478,9 @@ def update_sync_history(
                 sync_record.warnings_found = warning_qty > 0
                 sync_record.critical_found = critical_qty > 0
                 session.commit()
-                logger.debug(f"Updated SyncHistory record PK_ID={sync_record.id}, run_id={sync_record.run_id} ")
+                logger.debug(
+                    f"Updated SyncHistory record PK_ID={sync_record.id}, run_id={sync_record.run_id} "
+                )
             else:
                 logger.warning(f"SyncHistory record not found: {lookup_run_id}")
         except SQLAlchemyError as e:
@@ -463,9 +488,10 @@ def update_sync_history(
             logger.error(f"Failed to update SyncHistory: {e}")
             raise DatabaseError(f"Failed to update SyncHistory: {e}", original_exc=e)
 
+
 def get_agreement_count() -> int:
     """Get the current total count of agreements in the database.
-    
+
     Returns:
         Total number of agreements.
     """
@@ -475,17 +501,18 @@ def get_agreement_count() -> int:
             logger.debug(f"Current agreement count: {count}")
             return count
     except SQLAlchemyError as e:
-            logger.error(f"Failed to get agreement count: {e}")
-            raise DatabaseError(f"Failed to get agreement count: {e}", original_exc=e)
+        logger.error(f"Failed to get agreement count: {e}")
+        raise DatabaseError(f"Failed to get agreement count: {e}", original_exc=e)
+
 
 def rollback_agreements(since_count: int) -> int:
     """Delete agreements added after a specific count (for rollback on failure).
-    
+
     This deletes the newest agreements, keeping only the older ones (up to since_count).
-    
+
     Args:
         since_count: The count threshold. Agreements with ID > this will be deleted.
-        
+
     Returns:
         Number of agreements deleted.
     """
@@ -494,20 +521,24 @@ def rollback_agreements(since_count: int) -> int:
             # Get IDs of agreements to delete (those with ID > since_count)
             # We need to get the (since_count + 1)th agreement and all after it
             # Since IDs are auto-increment, we delete where id > since_count
-            
+
             # First, get the agreement IDs that need to stay
-            agreements_to_keep = session.query(models.Agreement).limit(since_count).all()
+            agreements_to_keep = (
+                session.query(models.Agreement).limit(since_count).all()
+            )
             keep_ids = [a.id for a in agreements_to_keep]
-            
+
             if keep_ids:
                 # Delete agreements not in the keep list
-                deleted = session.query(models.Agreement).filter(
-                    models.Agreement.id.notin_(keep_ids)
-                ).delete(synchronize_session=False)
+                deleted = (
+                    session.query(models.Agreement)
+                    .filter(models.Agreement.id.notin_(keep_ids))
+                    .delete(synchronize_session=False)
+                )
             else:
                 # If since_count is 0 or no agreements to keep, delete all
                 deleted = session.query(models.Agreement).delete()
-            
+
             session.commit()
             logger.info(f"Rolled back {deleted} agreements")
             return deleted
@@ -515,6 +546,7 @@ def rollback_agreements(since_count: int) -> int:
             session.rollback()
             logger.error(f"Failed to rollback agreements: {e}")
             raise DatabaseError(f"Failed to rollback agreements: {e}", original_exc=e)
+
 
 def get_group_by_api_id(api_group_id: str) -> Optional[models.Group]:
     """Get a Group by its API groupId.
@@ -535,39 +567,43 @@ def get_group_by_api_id(api_group_id: str) -> Optional[models.Group]:
             logger.error(f"Failed to fetch group by API ID: {e}")
             raise DatabaseError(f"Failed to fetch group by API ID: {e}", original_exc=e)
 
-def upsert_groups(all_groups_list: list[models.Group])-> None:
+
+def upsert_groups(all_groups_list: list[models.Group]) -> None:
     """Upsert group(s) into the database using group_id as natural key.
     Uses session.merge() after resolving the internal PK via group_id lookup (PREFETCH).
 
     Args:
         group_record: Group instance with keys: group_id, name, created_date, last_sync, is_default_grp.
     """
-   
+
     summary = {"inserted": 0, "updated": 0, "skipped": 0}
-    #logger.debug(f"all_grp_list={all_groups_list}")
+    # logger.debug(f"all_grp_list={all_groups_list}")
     try:
         with _get_session() as session:
-            
             # Single prefetch — map group_id → internal PK for the whole batch
             existing: dict = {
                 group_id: pk
-                for pk, group_id in session.query(models.Group.id, models.Group.group_id).all()
+                for pk, group_id in session.query(
+                    models.Group.id, models.Group.group_id
+                ).all()
             }
-            #logger.debug(f"existing_dict={existing}")
+            # logger.debug(f"existing_dict={existing}")
             for group_record in all_groups_list:
                 internal_pk = existing.get(group_record.group_id)
-                #logger.debug(f"internal_pk={internal_pk}")      # None → INSERT, int → UPDATE
+                # logger.debug(f"internal_pk={internal_pk}")      # None → INSERT, int → UPDATE
 
                 is_new_record = internal_pk is None
 
-                group_record.id = internal_pk           # None lets DB assign PK on insert
+                group_record.id = internal_pk  # None lets DB assign PK on insert
 
                 session.merge(group_record)
-                #logger.debug(f"merge group_record={group_record}")             # INSERT or UPDATE based on PK
-                #logger.debug(f"Upserted group: {group_record.group_id}")
+                # logger.debug(f"merge group_record={group_record}")             # INSERT or UPDATE based on PK
+                # logger.debug(f"Upserted group: {group_record.group_id}")
 
                 if is_new_record:
-                    existing[group_record.group_id] = ...            # guard intra-batch duplicates - updates table again if second api hit is received for same group_id
+                    existing[
+                        group_record.group_id
+                    ] = ...  # guard intra-batch duplicates - updates table again if second api hit is received for same group_id
                     summary["inserted"] += 1
                 else:
                     summary["updated"] += 1
@@ -579,9 +615,12 @@ def upsert_groups(all_groups_list: list[models.Group])-> None:
         raise DatabaseError(f"DB ERROR: Failed to upsert group: {e}", original_exc=e)
     logger.debug(f"{summary}")
 
-def get_group_pk()-> dict:
+
+def get_group_pk() -> dict:
     with _get_session() as session:
-        results = session.query(models.Group.id, models.Group.group_id).all() # List with tuples
+        results = session.query(
+            models.Group.id, models.Group.group_id
+        ).all()  # List with tuples
 
     existing = {}
     for pk, group_id in results:
@@ -589,6 +628,7 @@ def get_group_pk()-> dict:
 
     logger.debug(f"Generated group_id lookup with {len(existing)} records")
     return existing
+
 
 # TODO: Implement functions for Workflow synchronization
 def fetch_workflows_from_db() -> List[models.Workflow]:
@@ -598,6 +638,7 @@ def fetch_workflows_from_db() -> List[models.Workflow]:
     logger.warning("fetch_workflows_from_db() is not yet implemented.")
     return []
 
+
 def get_workflow_by_api_id(api_workflow_id: str) -> Optional[models.Workflow]:
     """Gets a workflow from the database by its API ID."""
     # This function needs to query the Workflow table using the api_workflow_id.
@@ -605,35 +646,39 @@ def get_workflow_by_api_id(api_workflow_id: str) -> Optional[models.Workflow]:
     logger.warning(f"get_workflow_by_api_id({api_workflow_id}) is not yet implemented.")
     return None
 
+
 def upsert_workflows(wkflow_list: List[models.Workflow]) -> None:
     """Upserts a list of workflows into the database using workflow_id as natural key.
-     Uses session.merge() after resolving the internal PK via workflow_id lookup (PREFETCH)."""
+    Uses session.merge() after resolving the internal PK via workflow_id lookup (PREFETCH)."""
 
     summary = {"inserted": 0, "updated": 0, "skipped": 0}
     # logger.debug(f"wkflow_list={wkflow_list}")
     try:
         with _get_session() as session:
-            
             # Single prefetch — map workflow_id → internal PK for the whole batch
             existing: dict = {
                 workflow_id: pk
-                for pk, workflow_id in session.query(models.Workflow.id, models.Workflow.workflow_id).all()
+                for pk, workflow_id in session.query(
+                    models.Workflow.id, models.Workflow.workflow_id
+                ).all()
             }
             logger.debug(f"existing_dict={existing}")
             for wkflow_record in wkflow_list:
                 internal_pk = existing.get(wkflow_record.workflow_id)
-                #logger.debug(f"internal_pk={internal_pk}")      # None → INSERT, int → UPDATE
+                # logger.debug(f"internal_pk={internal_pk}")      # None → INSERT, int → UPDATE
 
                 is_new_record = internal_pk is None
 
-                wkflow_record.id = internal_pk           # None lets DB assign PK on insert
+                wkflow_record.id = internal_pk  # None lets DB assign PK on insert
 
                 session.merge(wkflow_record)
-                #logger.debug(f"merge wkflow_record={wkflow_record}")             # INSERT or UPDATE based on PK
-                #logger.debug(f"Upserted wkflow: {wkflow_record.workflow_id}")
+                # logger.debug(f"merge wkflow_record={wkflow_record}")             # INSERT or UPDATE based on PK
+                # logger.debug(f"Upserted wkflow: {wkflow_record.workflow_id}")
 
                 if is_new_record:
-                    existing[wkflow_record.workflow_id] = ...            # guard intra-batch duplicates - updates table again if second api hit is received for same workflow_id
+                    existing[
+                        wkflow_record.workflow_id
+                    ] = ...  # guard intra-batch duplicates - updates table again if second api hit is received for same workflow_id
                     summary["inserted"] += 1
                 else:
                     summary["updated"] += 1
@@ -645,30 +690,35 @@ def upsert_workflows(wkflow_list: List[models.Workflow]) -> None:
         raise DatabaseError(f"DB ERROR: Failed to upsert workflow: {e}", original_exc=e)
     logger.debug(f"{summary}")
 
-def fetch_agrmnt_by_wkflow(start_date, end_date, target_wf:list)->list:
+
+def fetch_agrmnt_by_wkflow(start_date, end_date, target_wf: list) -> list:
     """Fetch agreements in daterange that belong to the target workflow list in the database.
         Workflow id provided matches worflow pk_id in Workflow table
-    
+
     Returns:
         List of agreements identified by Adobe Sign server agreement_id
     """
     with _get_session() as session:
-            stmt = select(models.Agreement.agreement_id).where(models.Agreement.workflow_id_ref.in_(target_wf))
-            # stmt = select(models.Agreement.agreement_id).where(models.Agreement.workflow_id_ref.between(5,6))
-            # stmt = select(models.Agreement.agreement_id).where(models.Agreement.workflow_id_ref == 5)
-            result = session.execute(stmt).scalars().all()
-            logger.debug (f"result_type= {type(result)} - result= {result}")
+        stmt = select(models.Agreement.agreement_id).where(
+            models.Agreement.workflow_id_ref.in_(target_wf)
+        )
+        # stmt = select(models.Agreement.agreement_id).where(models.Agreement.workflow_id_ref.between(5,6))
+        # stmt = select(models.Agreement.agreement_id).where(models.Agreement.workflow_id_ref == 5)
+        result = session.execute(stmt).scalars().all()
+        logger.debug(f"result_type= {type(result)} - result= {result}")
     logger.debug(f"Fetched Agreement ids. Agreement count: {len(result)}")
     return result
 
 
-def update_agrmnt_doc_status (agreement_id:str, agreement_type:str, doc_file_status:str, folder_name:str):
+def update_agrmnt_doc_status(
+    agreement_id: str, agreement_type: str, doc_file_status: str, folder_name: str
+):
     # import OS o PATHLIB para otener tamaño del file
     # import os
     # get timestamp
     current_ts = utils.get_current_timestamp()
 
-    #persist record
+    # persist record
     with _get_session() as session:
         # FETCH agreement_pk id from Agreement Table
         stmt = select(models.Agreement).filter_by(agreement_id=agreement_id)
@@ -679,34 +729,36 @@ def update_agrmnt_doc_status (agreement_id:str, agreement_type:str, doc_file_sta
         else:
             logger.error(f"Agreement not found error: {agreement_id}")
 
-
         pdf_file_path = f"{folder_name}{agreement_id}.pdf"
         new_record = models.Document(
-            agreement_id= agrmnt_pkid,
-            agreemen_type= agreement_type,
-            pdf_file_path= pdf_file_path,
-            txt_file_path= None,
+            agreement_id=agrmnt_pkid,
+            agreemen_type=agreement_type,
+            pdf_file_path=pdf_file_path,
+            txt_file_path=None,
             # file_size_bytes=os.path.getsize(pdf_file_path),
-            downloaded_ts= current_ts,
-            file_status= doc_file_status,
-            parsed_ts= None,
-            pdf_purged_ts= None,
-            txt_purged_ts= None,
-            error_message= None
-
+            downloaded_ts=current_ts,
+            file_status=doc_file_status,
+            parsed_ts=None,
+            pdf_purged_ts=None,
+            txt_purged_ts=None,
+            error_message=None,
         )
         session.add(new_record)
         session.commit()
-    logger.debug(f"Updated download lifecycle data for agreement: {agreement_id}, agrmnt_pk_id= {agrmnt_pkid!r} ts= {current_ts!r}")
+    logger.debug(
+        f"Updated download lifecycle data for agreement: {agreement_id}, agrmnt_pk_id= {agrmnt_pkid!r} ts= {current_ts!r}"
+    )
 
 
-def update_agrmnt_doc_parse_status (agreement_id:str, agreement_type:str, doc_file_status:str, folder_name:str):
+def update_agrmnt_doc_parse_status(
+    agreement_id: str, agreement_type: str, doc_file_status: str, folder_name: str
+):
     # import OS o PATHLIB para otener tamaño del file
     # import os
     # get timestamp
     current_ts = utils.get_current_timestamp()
 
-    #UPDATE existing record
+    # UPDATE existing record
     with _get_session() as session:
         # FETCH agreement_pk id from Agreement Table
         stmt = select(models.Agreement).filter_by(agreement_id=agreement_id)
@@ -721,7 +773,7 @@ def update_agrmnt_doc_parse_status (agreement_id:str, agreement_type:str, doc_fi
         # --- OLD CODE to fetch matching record from Document Table
 
         txt_file_path = f"{folder_name}{agreement_id}.txt"
-        
+
         # --- OLD CODE to fetch matching record from Document Table
         # if doc_record:
         #     doc_record.txt_file_path = txt_file_path
@@ -738,11 +790,22 @@ def update_agrmnt_doc_parse_status (agreement_id:str, agreement_type:str, doc_fi
             agrmnt_record.document.parsed_ts = current_ts
             agrmnt_record.document.file_status = doc_file_status
             session.commit()
-            logger.debug(f"Updated download lifecycle data for agreement: {agreement_id}, agreement_pk_id= {agrmnt_record.id!r}, doc_pk_id= {agrmnt_record.document.id} ts= {current_ts!r}")
+            logger.debug(
+                f"Updated download lifecycle data for agreement: {agreement_id}, agreement_pk_id= {agrmnt_record.id!r}, doc_pk_id= {agrmnt_record.document.id} ts= {current_ts!r}"
+            )
         else:
             logger.error(f"Agreement not found error: {agreement_id}")
 
-def update_approvers(agreement_id:str, api_response:list):
+
+def update_agrmnt_doc_token_status(agreement_id: str, doc_status: str) -> int:
+    """updates doc status table to Tokenized
+
+    Returns 0 if ok"""
+    # PENDING: WORK OUT HOW TO REUTILIZE THE 2 FN THAT UPDATE THIS TABLE (PREVIOUS 2 FNS)
+    return 0
+
+
+def update_approvers(agreement_id: str, api_response: list):
     with _get_session() as session:
         # --- SELECT RECORD TO UPDATE
         stmt = select(models.Agreement).filter_by(agreement_id=agreement_id)
@@ -752,42 +815,50 @@ def update_approvers(agreement_id:str, api_response:list):
         # --- ITERATE APPROVERS DICT and UPDATE AGREEMENT_SIGNER TABLE
         for dict_item in api_response:
             stmt = select(models.AgreementSigner).where(
-                models.AgreementSigner.agreement_id == agrmnt_pkid, 
-                models.AgreementSigner.signer_email == dict_item["email"])
+                models.AgreementSigner.agreement_id == agrmnt_pkid,
+                models.AgreementSigner.signer_email == dict_item["email"],
+            )
             signer_record = session.execute(stmt).scalar_one_or_none()
             signer_record.signer_role = dict_item["role"]
             signer_record.signer_order = dict_item["order"]
             signer_record.signer_label = dict_item["label"]
             signer_record.last_sync = date.today()
-            logger.debug(f"updating signer_pkid= {signer_record.id}, agreement_pkid {agrmnt_pkid}, email= {dict_item['email']}, role= {dict_item['role']}")
+            logger.debug(
+                f"updating signer_pkid= {signer_record.id}, agreement_pkid {agrmnt_pkid}, email= {dict_item['email']}, role= {dict_item['role']}"
+            )
         session.commit()
     logger.debug(f"Updated agreement_pkid= {agrmnt_pkid}, agreement_id= {agreement_id}")
 
-def insert_jad_content(agreement_id:str, input_dict:dict)->int:
+
+def insert_jad_content(agreement_id: str, input_dict: dict) -> int:
     with _get_session() as session:
-        
-        # --- FETCH AGREEMENT PK_ID 
+        # --- FETCH AGREEMENT PK_ID
         stmt = select(models.Agreement).filter_by(agreement_id=agreement_id)
         agrmnt_record = session.execute(stmt).scalar_one_or_none()
         agrmnt_pkid = agrmnt_record.id
-        logger.debug(f"Found agreement pkid= {agrmnt_pkid} for agreement_id= {agreement_id}")
+        logger.debug(
+            f"Found agreement pkid= {agrmnt_pkid} for agreement_id= {agreement_id}"
+        )
 
         # --- INSERT RECORD IN JAD_CONTENT TABLE
         new_jad_record = models.JadContent(
-            agreement_id= agrmnt_pkid,
-            gerencia_solicitante= input_dict["gerencia_solicitante"],
-            rut_proveedor= input_dict["rut_proveedor"],
-            nombre_proveedor= input_dict["nombre_proveedor"],
-            monto_uf= input_dict["monto_uf"],
-            cuenta_contable= input_dict["cuenta_contable"],
-            centro_costo= input_dict["centro_costo"],
-            orden_controlling= input_dict["orden_controlling"]
+            agreement_id=agrmnt_pkid,
+            gerencia_solicitante=input_dict["gerencia_solicitante"],
+            rut_proveedor=input_dict["rut_proveedor"],
+            nombre_proveedor=input_dict["nombre_proveedor"],
+            monto_uf=input_dict["monto_uf"],
+            cuenta_contable=input_dict["cuenta_contable"],
+            centro_costo=input_dict["centro_costo"],
+            orden_controlling=input_dict["orden_controlling"],
             # last_sync= date.today() - should be automatically updated by SQLA
         )
         session.add(new_jad_record)
-        logger.debug(f"Inserted JAD Content pkid= {agrmnt_record.jad_content.id}, agreement_pkid= {agrmnt_pkid}, agreement_id= {agreement_id}")
+        logger.debug(
+            f"Inserted JAD Content pkid= {agrmnt_record.jad_content.id}, agreement_pkid= {agrmnt_pkid}, agreement_id= {agreement_id}"
+        )
         session.commit()
     return 0
+
 
 # CREATED BY GEMINI - REVIEW
 def get_all_agreements_for_export() -> List[Dict[str, Any]]:
@@ -809,12 +880,18 @@ def get_all_agreements_for_export() -> List[Dict[str, Any]]:
                 models.User,
                 models.Group,
                 models.AgreementSigner,
-                models.DocFieldContent
+                models.DocFieldContent,
             )
             .join(models.User, models.Agreement.user_id == models.User.id)
             .join(models.Group, models.Agreement.group_id_ref == models.Group.id)
-            .outerjoin(models.AgreementSigner, models.Agreement.id == models.AgreementSigner.agreement_id)
-            .outerjoin(models.DocFieldContent, models.Agreement.id == models.DocFieldContent.agreement_id)
+            .outerjoin(
+                models.AgreementSigner,
+                models.Agreement.id == models.AgreementSigner.agreement_id,
+            )
+            .outerjoin(
+                models.DocFieldContent,
+                models.Agreement.id == models.DocFieldContent.agreement_id,
+            )
             .order_by(models.Agreement.id)
         )
 
@@ -823,7 +900,7 @@ def get_all_agreements_for_export() -> List[Dict[str, Any]]:
         # Process results to flatten related data and handle multiple signers/doc fields per agreement
         processed_data = []
         current_agreement_data = None
-        
+
         # Temporary storage for signers and doc fields for the current agreement
         current_signers = []
         current_doc_fields = []
@@ -832,7 +909,10 @@ def get_all_agreements_for_export() -> List[Dict[str, Any]]:
             agreement, user, group, signer, doc_field = row
 
             # Initialize agreement data if it's the first row or a new agreement
-            if current_agreement_data is None or current_agreement_data["agreement_id"] != agreement.agreement_id:
+            if (
+                current_agreement_data is None
+                or current_agreement_data["agreement_id"] != agreement.agreement_id
+            ):
                 # Save the previous agreement data if it exists
                 if current_agreement_data:
                     # Add aggregated signers and doc fields to the previous agreement data
@@ -846,30 +926,51 @@ def get_all_agreements_for_export() -> List[Dict[str, Any]]:
                     "name": agreement.name,
                     "status": agreement.status,
                     "workflow_id": agreement.workflow_id,
-                    "created_date": str(agreement.created_date) if agreement.created_date else None,
-                    "modified_date": str(agreement.modified_date) if agreement.modified_date else None,
+                    "created_date": str(agreement.created_date)
+                    if agreement.created_date
+                    else None,
+                    "modified_date": str(agreement.modified_date)
+                    if agreement.modified_date
+                    else None,
                     "user_email": user.email if user else None,
                     "user_first_name": user.first_name if user else None,
                     "user_last_name": user.last_name if user else None,
-                    "group_name": group.name if group else None
+                    "group_name": group.name if group else None,
                 }
                 current_signers = []
                 current_doc_fields = []
 
             # Add signer if available and not already added for this agreement
-            if signer and signer.signer_email and not any(s["signer_email"] == signer.signer_email for s in current_signers):
-                current_signers.append({
-                    "signer_email": signer.signer_email,
-                    "signer_full_name": signer.signer_full_name,
-                    "signer_role": signer.signer_role
-                })
+            if (
+                signer
+                and signer.signer_email
+                and not any(
+                    s["signer_email"] == signer.signer_email for s in current_signers
+                )
+            ):
+                current_signers.append(
+                    {
+                        "signer_email": signer.signer_email,
+                        "signer_full_name": signer.signer_full_name,
+                        "signer_role": signer.signer_role,
+                    }
+                )
 
             # Add doc field content if available and not already added for this agreement
-            if doc_field and doc_field.agreement_subtype and not any(df["agreement_subtype"] == doc_field.agreement_subtype for df in current_doc_fields):
-                current_doc_fields.append({
-                    "agreement_subtype": doc_field.agreement_subtype,
-                    "requester_area": doc_field.requester_area
-                })
+            if (
+                doc_field
+                and doc_field.agreement_subtype
+                and not any(
+                    df["agreement_subtype"] == doc_field.agreement_subtype
+                    for df in current_doc_fields
+                )
+            ):
+                current_doc_fields.append(
+                    {
+                        "agreement_subtype": doc_field.agreement_subtype,
+                        "requester_area": doc_field.requester_area,
+                    }
+                )
 
         # Append the last processed agreement
         if current_agreement_data:
@@ -877,13 +978,16 @@ def get_all_agreements_for_export() -> List[Dict[str, Any]]:
             current_agreement_data["doc_field_contents"] = current_doc_fields
             processed_data.append(current_agreement_data)
 
-        logger.info(f"Fetched and processed {len(processed_data)} agreements for export.")
+        logger.info(
+            f"Fetched and processed {len(processed_data)} agreements for export."
+        )
         return processed_data
 
     except SQLAlchemyError as e:
         logger.error(f"Database error fetching agreements for export: {e}")
-        raise DatabaseError(f"Database error fetching agreements for export: {e}", original_exc=e)
+        raise DatabaseError(
+            f"Database error fetching agreements for export: {e}", original_exc=e
+        )
     finally:
         if session:
             session.close()
-

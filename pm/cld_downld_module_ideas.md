@@ -1,5 +1,13 @@
 # Download Module Scrap Pad
 
+## Doc Lifecycle status(es)
+* PENDING
+* DOWNLOADED
+* PARSED
+* TOKENIZED
+* PURGED_PDF
+* PURGED_TXT
+
 ## DESIGN IDEAS
 
 ### Prompt:
@@ -1878,4 +1886,3 @@ print(f"El tamaño es: {tamaño_bytes} bytes")
 
 ## 💡 ¿Por qué funciona "rb"?
 Es fundamental usar el modo "rb" (Read Binary). Si abres el PDF en modo de texto normal ("r"), Python intentará decodificar los caracteres y el conteo de bytes será incorrecto o arrojará un error de decodificación (UnicodeDecodeError).
-
