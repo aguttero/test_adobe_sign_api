@@ -2,12 +2,12 @@
 Pure stateless helper functions for the Adobe Sign dashboard.
 No IO, no exceptions, no imports from other app modules.
 """
-import uuid
-import logging
-from datetime import datetime
-from typing import Tuple, Callable
-from functools import wraps
 
+import logging
+import uuid
+from datetime import datetime
+from functools import wraps
+from typing import Callable, Tuple
 
 # Logger for this module (used by helpers)
 _logger = logging.getLogger(__name__)
@@ -51,16 +51,19 @@ def log_critical(logger: logging.Logger, message: str) -> None:
 
 def log_function_call(logger: logging.Logger) -> Callable:
     """Decorator to log function calls at DEBUG level.
-    
+
     Usage:
         @log_function_call(logger)
         def my_function(arg1, arg2):
             ...
     """
+
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         def wrapper(*args, **kwargs):
-            logger.debug(f"Calling {func.__name__}(args={len(args)}, kwargs={list(kwargs.keys())})")
+            logger.debug(
+                f"Calling {func.__name__}(args={len(args)}, kwargs={list(kwargs.keys())})"
+            )
             try:
                 result = func(*args, **kwargs)
                 logger.debug(f"{func.__name__} completed successfully")
@@ -68,13 +71,17 @@ def log_function_call(logger: logging.Logger) -> Callable:
             except Exception as e:
                 logger.debug(f"{func.__name__} raised {type(e).__name__}: {e}")
                 raise
+
         return wrapper
+
     return decorator
 
 
-def log_operation_result(logger: logging.Logger, operation: str, count: int, level: str = "info") -> None:
+def log_operation_result(
+    logger: logging.Logger, operation: str, count: int, level: str = "info"
+) -> None:
     """Log operation result with appropriate level.
-    
+
     Args:
         logger: Logger instance.
         operation: Description of operation (e.g., "Inserted users").
@@ -96,9 +103,10 @@ def log_operation_result(logger: logging.Logger, operation: str, count: int, lev
 # Pure Helper Functions
 # =============================================================================
 
+
 def generate_run_id() -> str:
     """Generate a unique run ID for this execution.
-    
+
     Returns:
         A unique UUID string.
     """
@@ -107,20 +115,32 @@ def generate_run_id() -> str:
 
 def get_current_timestamp() -> datetime:
     """Get the current datetime.
-    
+
     Returns:
         Current datetime object.
     """
     return datetime.now()
 
 
-def calculate_elapsed_time(start_time: datetime, end_time: datetime) -> Tuple[int, int, float]:
+def get_current_ts_str() -> str:
+    """Get the current datetime.
+
+    Returns:
+        Current datetime string.
+    """
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    return ts
+
+
+def calculate_elapsed_time(
+    start_time: datetime, end_time: datetime
+) -> Tuple[int, int, float]:
     """Calculate elapsed time between two timestamps.
-    
+
     Args:
         start_time: Start datetime.
         end_time: End datetime.
-        
+
     Returns:
         Tuple of (hours, minutes, seconds_total).
     """
@@ -129,18 +149,18 @@ def calculate_elapsed_time(start_time: datetime, end_time: datetime) -> Tuple[in
     hours = int(total_seconds // 3600)
     minutes = int((total_seconds % 3600) // 60)
     seconds = total_seconds
-    
+
     return hours, minutes, seconds
 
 
 def format_elapsed_time(hours: int, minutes: int, seconds: float) -> str:
     """Format elapsed time as a readable string.
-    
+
     Args:
         hours: Number of hours.
         minutes: Number of minutes.
         seconds: Total seconds.
-        
+
     Returns:
         Formatted string like "0h 5m 30.50s".
     """
@@ -150,10 +170,10 @@ def format_elapsed_time(hours: int, minutes: int, seconds: float) -> str:
 # Transform date with isoformat to naive SQLlite date
 def convert_to_sqlite_date(date_iso: str) -> datetime:
     """Convert ISO date string to SQLite date format.
-    
+
     Args:
         date_iso: ISO format date string (e.g., "2026-03-02T08:23:52-08:00")
-        
+
     Returns:
         Date object.
     """

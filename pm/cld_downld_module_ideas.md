@@ -1,10 +1,11 @@
 # Download Module Scrap Pad
 
-## Doc Lifecycle status(es)
+## Doc Lifecycle status(es) storein lowercase in DB Table
 * PENDING
 * DOWNLOADED
 * PARSED
-* TOKENIZED
+* EXTRACTED
+* TOKENIZED (for contracts)ΩΩ
 * PURGED_PDF
 * PURGED_TXT
 

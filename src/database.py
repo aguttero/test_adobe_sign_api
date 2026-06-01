@@ -753,10 +753,11 @@ def update_agrmnt_doc_status(
 def update_agrmnt_doc_parse_status(
     agreement_id: str, agreement_type: str, doc_file_status: str, folder_name: str
 ):
+    """Updates doc status to doc_file_status param value (AG: PARSED)"""
     # import OS o PATHLIB para otener tamaño del file
     # import os
     # get timestamp
-    current_ts = utils.get_current_timestamp()
+    current_ts: str = utils.get_current_ts_str()
 
     # UPDATE existing record
     with _get_session() as session:
@@ -798,10 +799,28 @@ def update_agrmnt_doc_parse_status(
 
 
 def update_agrmnt_doc_token_status(agreement_id: str, doc_status: str) -> int:
-    """updates doc status table to Tokenized
+    """updates doc status table to doc_status param value (AG: Tokenized)
 
     Returns 0 if ok"""
     # PENDING: WORK OUT HOW TO REUTILIZE THE 2 FN THAT UPDATE THIS TABLE (PREVIOUS 2 FNS)
+
+    # --- UPDATE existing record
+    with _get_session() as session:
+        # FETCH agreement_pk id from Agreement Table
+        stmt = select(models.Agreement).filter_by(agreement_id=agreement_id)
+        agrmnt_record = session.execute(stmt).scalar_one_or_none()
+        agrmnt_pkid = agrmnt_record.id
+
+        if agrmnt_record:
+            agrmnt_record.document.file_status = doc_status
+            logger.debug(
+                f"Updated download lifecycle data for agreement: {agreement_id}, agreement_pkid= {agrmnt_record.id!r}, doc_pkid= {agrmnt_record.document.id}"
+            )
+            session.commit()
+        else:
+            logger.error(f"Agreement not found error: {agreement_id}")
+            session.rollback()
+
     return 0
 
 

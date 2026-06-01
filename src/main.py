@@ -457,7 +457,7 @@ def parse_documents(agreement_list: list):
         logger.debug(f"Jad DB table update result= {result}")
 
         # --- UPDATE DOC STATUS TABLE
-        doc_file_status = "TOKENIZED"
+        doc_file_status = "tokenized"
         result = db.update_agrmnt_doc_token_status(agreement_id, doc_file_status)
         logger.debug(f"Agrmtn status update result= {result}")
 
