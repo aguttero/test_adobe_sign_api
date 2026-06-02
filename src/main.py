@@ -380,10 +380,12 @@ def download_documents(date_range_start, date_range_end, agreement_type: str) ->
     target_agreement_list = db.fetch_agrmnt_by_wkflow(
         date_range_start, date_range_end, target_wkflow_list
     )
+
     downloaded_agreement_list = []
     # ITERATE AGREEMENT LIST TO FETCH PDF FROM API, APPROVER INFO FROM API STORE and UPDATE DOC INDEX TABLE
-    for agrmnt_id in target_agreement_list[7:8]:  # test agreement pkid=1195
-        counter = 0
+    counter = 0
+    # for agrmnt_id in target_agreement_list[7:8]:  # test agreement pkid=1195
+    for agrmnt_id in target_agreement_list:
         # ---DOWNLOAD AGREEMENT FROM API
         # api_pdf_bytes = api.download_agreement(agrmnt_id)
         # if api_pdf_bytes:
@@ -413,7 +415,7 @@ def download_documents(date_range_start, date_range_end, agreement_type: str) ->
         # TEST agreement_id updated = 1195
         # db.update_approvers(agrmnt_id, api_response)
 
-        # --- PARSE DOCUMENT TO TOKENS
+        # --- PARSE DOCUMENT TO WORDS
         pdf_file_name = f"{agrmnt_id}.pdf"
         word_list = parser.convert_pdf_to_words(pdf_file_name)
 
@@ -432,8 +434,9 @@ def download_documents(date_range_start, date_range_end, agreement_type: str) ->
 
     # ----TEST CODE
     # downloaded_agreement_list = target_agreement_list gets assigned after the api call in this function
-    # ADD VALIDATION TO target list vs downloaded list
-    downloaded_agreement_list = target_agreement_list[7:8]
+    # PENDING: ADD VALIDATION TO target list vs downloaded list
+    # downloaded_agreement_list = target_agreement_list[7:8]
+    downloaded_agreement_list = target_agreement_list[7:]
 
     # ----TEST CODE
     logger.debug(f"Downloaded agreement list= {downloaded_agreement_list}")
@@ -458,8 +461,8 @@ def parse_documents(agreement_list: list):
 
         # --- UPDATE DOC STATUS TABLE
         doc_file_status = "tokenized"
-        result = db.update_agrmnt_doc_token_status(agreement_id, doc_file_status)
-        logger.debug(f"Agrmtn status update result= {result}")
+        result2 = db.update_agrmnt_doc_token_status(agreement_id, doc_file_status)
+        logger.debug(f"Agrmtn status update result2= {result2}")
 
         # --- LOG info
     return 0
