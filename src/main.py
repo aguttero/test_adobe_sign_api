@@ -385,11 +385,11 @@ def download_documents(date_range_start, date_range_end, agreement_type: str) ->
     # ITERATE AGREEMENT LIST TO FETCH PDF FROM API, APPROVER INFO FROM API STORE and UPDATE DOC INDEX TABLE
     counter = 0
     # for agrmnt_id in target_agreement_list[7:8]:  # test agreement pkid=1195
-    for agrmnt_id in target_agreement_list[31:]:
+    for agrmnt_id in target_agreement_list:
         # ---DOWNLOAD AGREEMENT FROM API
-        api_pdf_bytes = api.download_agreement(agrmnt_id)
-        if api_pdf_bytes:
-            downloaded_agreement_list.append(agrmnt_id)
+        # api_pdf_bytes = api.download_agreement(agrmnt_id)
+        # if api_pdf_bytes:
+        #     downloaded_agreement_list.append(agrmnt_id)
 
         # ---SAVE PDF TO FILE
         # STORE IN 'jad_pdf/agreement_id.pdf'
@@ -397,18 +397,18 @@ def download_documents(date_range_start, date_range_end, agreement_type: str) ->
         # PENDING: Save as .tmp then validate downloaded ok then rename to .pdf
 
         # PROD CODE <---
-        target_file_path = f"{STORAGE_FOLDER}{JAD_PDF_FOLDER}{agrmnt_id}.pdf"
-        with open(target_file_path, "wb") as file:
-            file.write(api_pdf_bytes)
-        logger.debug(
-            f"Saved to local file agreement_id: {STORAGE_FOLDER}{JAD_PDF_FOLDER}{agrmnt_id}.pdf"
-        )
+        # target_file_path = f"{STORAGE_FOLDER}{JAD_PDF_FOLDER}{agrmnt_id}.pdf"
+        # with open(target_file_path, "wb") as file:
+        #     file.write(api_pdf_bytes)
+        # logger.debug(
+        #     f"Saved to local file agreement_id: {STORAGE_FOLDER}{JAD_PDF_FOLDER}{agrmnt_id}.pdf"
+        # )
 
         # ---UPDATE DOCUMENT INDEX TABLE
-        db_file_status = "downloaded"
-        db.update_agrmnt_doc_status(
-            agrmnt_id, agreement_type, db_file_status, JAD_PDF_FOLDER
-        )
+        # db_file_status = "downloaded"
+        # db.update_agrmnt_doc_status(
+        #     agrmnt_id, agreement_type, db_file_status, JAD_PDF_FOLDER
+        # )
 
         # --- FETCH APPROVERS FROM API
         # api_response = api.fetch_approvers(agrmnt_id)
@@ -419,7 +419,7 @@ def download_documents(date_range_start, date_range_end, agreement_type: str) ->
         # TEST agreement_id updated = 1195
         # db.update_approvers(agrmnt_id, api_response)
 
-        # --- PARSE DOCUMENT TO WORDS
+        # --- CONVERT DOCUMENT TO WORDS
         # pdf_file_name = f"{agrmnt_id}.pdf"
         # word_list = parser.convert_pdf_to_words(pdf_file_name)
 
@@ -440,7 +440,7 @@ def download_documents(date_range_start, date_range_end, agreement_type: str) ->
     # downloaded_agreement_list = target_agreement_list gets assigned after the api call in this function
     # PENDING: ADD VALIDATION TO target list vs downloaded list
     # downloaded_agreement_list = target_agreement_list[7:8]
-    downloaded_agreement_list = target_agreement_list[7:]
+    downloaded_agreement_list = target_agreement_list[12:20]
 
     # ----TEST CODE
     logger.debug(f"Downloaded agreement list= {downloaded_agreement_list}")
@@ -451,26 +451,26 @@ def parse_documents(agreement_list: list):
     # --- ITERATE LIST
     for agreement_id in agreement_list:
         # --- FETCH TXT FILE
-        # word_list: list = parser.fetch_txt_file(agreement_id)
-        # logger.debug(f"word_list_len= {len(word_list)}")
+        word_list: list = parser.fetch_txt_file(agreement_id)
+        logger.debug(f"word_list_len= {len(word_list)}")
 
         # --- PARSE WORDS
-        # result_dict: dict = parser.parse_jad_words(word_list)
-        ## logger.debug(f"result_dict_len= {len(result_dict)}"
-        # logger.debug(f"result_dict= {result_dict}")
+        result_dict: dict = parser.parse_jad_words(word_list)
+        # logger.debug(f"result_dict_len= {len(result_dict)}"
+        logger.debug(f"result_dict= {result_dict}")
 
         # --- STORE JAD CONTENT DATA IN DB TABLE
-        # result = db.insert_jad_content(agreement_id, result_dict)
-        # logger.debug(f"Jad DB table update result= {result}")
+        result = db.insert_jad_content(agreement_id, result_dict)
+        logger.debug(f"Jad DB table update result= {result}")
 
         # --- UPDATE DOC STATUS TABLE
-        # doc_file_status = "tokenized"
-        # result2 = db.update_agrmnt_doc_token_status(agreement_id, doc_file_status)
-        # logger.debug(f"Agrmtn status update result2= {result2}")
+        doc_file_status = "tokenized"
+        result2 = db.update_agrmnt_doc_token_status(agreement_id, doc_file_status)
+        logger.debug(f"Agrmtn status update result2= {result2}")
 
         # --- LOG info
-        logger.debug("Testing Break")
-        break
+        # logger.debug("Testing Break")
+        # break
     return 0
 
 
@@ -662,7 +662,7 @@ def dev_main() -> int:
         #     return 1
 
         ### DOWNLOAD STAGE #####
-        # ----- DOWNLOAD AND PARSE TO TOKENS STEP
+        # ----- DOWNLOAD AND PARSE TO WORDS STEP
         # Search for JADs in DB, download, verify and index
 
         agreement_type = "JAD"

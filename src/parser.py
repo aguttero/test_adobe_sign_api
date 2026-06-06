@@ -1,40 +1,48 @@
-import logging
 import ast
-from dotenv import dotenv_values
+import logging
+
 import pymupdf
+from dotenv import dotenv_values
 
 # Init module logger
 logger = logging.getLogger(__name__)
 
 
-
 # STORAGE CONFIG
 FOLDER_IN = "storage/jad/"
-FOLDER_OUT = "storage/test_out/" 
+FOLDER_OUT = "storage/test_out/"
 
 # Storage Locations
-storage_config = dotenv_values('.env')
+storage_config = dotenv_values(".env")
 
-STORAGE_FOLDER = storage_config.get("STORAGE_FOLDER") # "storage/"
-JAD_PDF_FOLDER = storage_config.get("JAD_PDF_FOLDER") # "jad_pdf/"
-JAD_TXT_FOLDER = storage_config.get("JAD_TXT_FOLDER") # "jad_txt/"
-CONTRACT_PDF_FOLDER = storage_config.get("CONTRACT_PDF_FOLDER") # "con_pdf/"
-CONTRACT_TXT_FOLDER = storage_config.get("CONTRACT_TXT_FOLDER") # "con_txt/"
+STORAGE_FOLDER = storage_config.get("STORAGE_FOLDER")  # "storage/"
+JAD_PDF_FOLDER = storage_config.get("JAD_PDF_FOLDER")  # "jad_pdf/"
+JAD_TXT_FOLDER = storage_config.get("JAD_TXT_FOLDER")  # "jad_txt/"
+CONTRACT_PDF_FOLDER = storage_config.get("CONTRACT_PDF_FOLDER")  # "con_pdf/"
+CONTRACT_TXT_FOLDER = storage_config.get("CONTRACT_TXT_FOLDER")  # "con_txt/"
+
 
 # --- PDF TO WORDS.TXT CONVERSION
 def convert_pdf_to_words(file_name: str) -> list:
     """Converts file_name PDF content into a list of words
     Returns: list of words"""
     all_words_list = []
-    with pymupdf.open(f"{STORAGE_FOLDER}{JAD_PDF_FOLDER}{file_name}") as doc:  # open a document
+    with pymupdf.open(
+        f"{STORAGE_FOLDER}{JAD_PDF_FOLDER}{file_name}"
+    ) as doc:  # open a document
         logger.debug(f"found file name: {file_name!r}")
         for page in doc:  # iterate the document pages
             full_words = page.get_text("words")  # convert page into word tuples
             # PARSE WORDS:
             for word_tuple in full_words:
-                all_words_list.append(word_tuple[4]) #4 is the actual word. Tuple includes other metadata values
-    logger.debug(f"Converted file {file_name} to words. Word qty= {len(all_words_list)}")
+                all_words_list.append(
+                    word_tuple[4]
+                )  # 4 is the actual word. Tuple includes other metadata values
+    logger.debug(
+        f"Converted file {file_name} to words. Word qty= {len(all_words_list)}"
+    )
     return all_words_list
+
 
 def save_words_file(word_list: list, pdf_filename: str):
     """Saves input list to TXT file in FOLDER_OUT directory. Renames the file from .pdf to .txt"""
@@ -45,16 +53,18 @@ def save_words_file(word_list: list, pdf_filename: str):
         file.write(f"{word_list}")
     logger.debug(f"Stored tokens in file= {txt_file_name}")
 
+
 # --- TXT FILE TO WORDS LIST
-def fetch_txt_file(agreement_id:str)->list:
+def fetch_txt_file(agreement_id: str) -> list:
     # --- FETCH WORD LIST from txt file
     txt_file_name = f"{STORAGE_FOLDER}{JAD_TXT_FOLDER}{agreement_id}.txt"
-    with open (txt_file_name,'r', encoding='utf-8') as file:
+    with open(txt_file_name, "r", encoding="utf-8") as file:
         file_content = file.read().strip()
 
     word_list = ast.literal_eval(file_content)
     logger.debug(f"Fetched file= {txt_file_name}, word_qty= {len(word_list)}")
     return word_list
+
 
 # --- PARSE WORD LIST FUNCTIONS FOR JAD
 def find_anchor(tokens: list, *anchor_words) -> int:
@@ -89,6 +99,7 @@ def find_anchor(tokens: list, *anchor_words) -> int:
     # If we parsed al text and no complete coincidence:
     return -1  #  '-1' flag means: anchor words not found
 
+
 def extract_until_anchor_claude(tokens, start, *stop_anchors):
     """Collect tokens from `start` until we hit any known stop anchor."""
     stop_sequences = [
@@ -109,6 +120,7 @@ def extract_until_anchor_claude(tokens, start, *stop_anchors):
         i += 1
     return result, i
 
+
 def parse_jad_words(tokens: list) -> dict:
     """Extracts data from a JAD token list
     Returns: dictionary"""
@@ -119,6 +131,7 @@ def parse_jad_words(tokens: list) -> dict:
     idx = find_anchor(tokens, "Fecha:")
     if idx != -1:
         result["fecha"] = tokens[idx + 1]
+        logger.debug(f"Found fecha= {result['fecha']}")
 
     # --- Requesting area (Gerencia Solicitante) ---
     # Anchor: "Gerencia", "Solicitante" → collect until "Rut" anchor
@@ -128,7 +141,7 @@ def parse_jad_words(tokens: list) -> dict:
             tokens, idx + 2, ["Rut", "Proveedor"]
         )
         result["gerencia_solicitante"] = " ".join(area_tokens)
-        logger.debug(f"area_tokens= {area_tokens!r}")
+        logger.debug(f"Found gcia_solicitante= {area_tokens!r}")
 
     # --- RUT Proveedor ---
     # Anchor/header: "Rut", "Proveedor", "Razón", "Social", "Proveedor", "SI/NO"
@@ -140,7 +153,7 @@ def parse_jad_words(tokens: list) -> dict:
         # Skip the full header v2: "Social Proveedor SI/NO" (3 tokens)
         header_end = idx + 3  # adjust if your header varies
         result["rut_proveedor"] = tokens[header_end]
-        logger.debug(f"rut_proveedor= {tokens[header_end]!r}")
+        logger.debug(f"Found rut_proveedor= {tokens[header_end]!r}")
 
     # --- Razón Social Proveedor(Company Name) ---
     # Company name starts right after the RUT value, ends at next anchor
@@ -150,7 +163,7 @@ def parse_jad_words(tokens: list) -> dict:
             tokens, rut_idx + 1, ["Proveedor", "Relacionado"]
         )
         result["nombre_proveedor"] = " ".join(name_tokens)
-        logger.debug(f"name_tokens= {name_tokens!r}")
+        logger.debug(f"Found nombre_proveedor= {name_tokens!r}")
 
     # --- Monto en UF (UF Amount) ---
     # Anchor/header: 'Criticidad', 'del', 'Servicio'
@@ -163,7 +176,7 @@ def parse_jad_words(tokens: list) -> dict:
             tokens[header_end].strip().replace(".", "").replace(",", ".")
         )
         result["monto_uf"] = uf_amount_float
-        logger.debug(f"monto_uf= {result['monto_uf']!r}")
+        logger.debug(f"Found monto_uf= {result['monto_uf']!r}")
 
     # --- Cuenta Contable (Accounting Account) ---
     # Anchor/header: 'Cuenta', 'Contable', 'Centro', 'de', 'Costo', 'Orden', 'Controlling'
