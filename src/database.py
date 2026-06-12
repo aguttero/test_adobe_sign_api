@@ -824,29 +824,125 @@ def update_agrmnt_doc_token_status(agreement_id: str, doc_status: str) -> int:
     return 0
 
 
-def update_approvers(agreement_id: str, api_response: list):
-    with _get_session() as session:
-        # --- SELECT RECORD TO UPDATE
-        stmt = select(models.Agreement).filter_by(agreement_id=agreement_id)
-        agrmnt_record = session.execute(stmt).scalar_one_or_none()
-        agrmnt_pkid = agrmnt_record.id
+def find_multiple_duplicates(data_list, key, target_count=3):
+    """
+    Find distinct values for a given key that are duplicated in a list of dictionaries.
+    Scans the list and collects values that appear more than once.
 
-        # --- ITERATE APPROVERS DICT and UPDATE AGREEMENT_SIGNER TABLE
-        for dict_item in api_response:
-            stmt = select(models.AgreementSigner).where(
-                models.AgreementSigner.agreement_id == agrmnt_pkid,
-                models.AgreementSigner.signer_email == dict_item["email"],
-            )
-            signer_record = session.execute(stmt).scalar_one_or_none()
-            signer_record.signer_role = dict_item["role"]
-            signer_record.signer_order = dict_item["order"]
-            signer_record.signer_label = dict_item["label"]
-            signer_record.last_sync = date.today()
-            logger.debug(
-                f"updating signer_pkid= {signer_record.id}, agreement_pkid {agrmnt_pkid}, email= {dict_item['email']}, role= {dict_item['role']}"
-            )
-        session.commit()
-    logger.debug(f"Updated agreement_pkid= {agrmnt_pkid}, agreement_id= {agreement_id}")
+    Parameters
+    ----------
+    data_list : list of dict
+    key : The dictionary key whose values are checked for duplicates.
+    target_count : int, optional
+        The number of distinct duplicated values needed to trigger an early
+        return (default is 3).
+
+    Returns
+    -------
+    List containing the unique values that were found to be duplicated.
+    May contain fewer items than `target_count` if the list ends early.
+    """
+
+    seen = set()
+    duplicated_values = set()
+
+    for dict in data_list:
+        if key in dict:
+            val = dict[key]
+            if val in seen:
+                duplicated_values.add(val)
+                # Short-circuit early once we hit your target count (e.g., 3 distinct duplicates)
+                if len(duplicated_values) >= target_count:
+                    return list(duplicated_values)
+            else:
+                seen.add(val)
+
+    return list(duplicated_values)
+
+
+def update_approvers(agreement_id: str, api_response: list):
+    # --- EDGE CASE DETECTION -> SAME EMAIL - MULTIPLE ROLES
+    duplicated_list = find_multiple_duplicates(api_response, "email", 3)
+
+    if not duplicated_list:
+        # --- Standard update, disctinct emails for each approver role
+        with _get_session() as session:
+            # --- SELECT RECORD TO UPDATE
+            stmt = select(models.Agreement).filter_by(agreement_id=agreement_id)
+            agrmnt_record = session.execute(stmt).scalar_one_or_none()
+            agrmnt_pkid = agrmnt_record.id
+
+            # --- ITERATE APPROVERS DICT and UPDATE AGREEMENT_SIGNER TABLE
+            for dict_item in api_response:
+                stmt = select(models.AgreementSigner).where(
+                    models.AgreementSigner.agreement_id == agrmnt_pkid,
+                    models.AgreementSigner.signer_email == dict_item["email"],
+                )
+
+                # --- Code for 1 email per role
+                signer_record = session.execute(stmt).scalar_one()
+                signer_record.signer_full_name = dict_item["name"]
+                signer_record.signer_role = dict_item["role"]
+                signer_record.signer_order = dict_item["order"]
+                signer_record.signer_label = dict_item["label"]
+                signer_record.last_sync = date.today()
+                logger.debug(
+                    f"updating signer_pkid= {signer_record.id}, agreement_pkid {agrmnt_pkid}, email= {dict_item['email']}, role= {dict_item['role']}"
+                )
+                # --- End Code 1 email per role
+            session.commit()
+
+        logger.debug(
+            f"Updated agreement_pkid= {agrmnt_pkid}, agreement_id= {agreement_id}"
+        )
+
+    else:
+        print("Proceso para emails duplicados")
+        logger.warning(
+            f"Skipping approvers update for agreement_id = {agreement_id}. Duplicate roles for same email= {duplicated_list}"
+        )
+
+        # for dict_item in api_response:
+        #     stmt = select(models.AgreementSigner).where(
+        #         models.AgreementSigner.agreement_id == agrmnt_pkid,
+        #         models.AgreementSigner.signer_email == "ernesto@email.cl",
+        # )
+        # GROUP repeated emails
+        #
+        # --- Edge case testing
+        # signer_record_list = session.execute(
+        #     stmt
+        # ).all()  # lista de objetos AgreementSigner
+        # content= [(AgreementSigner(email='leon@email.cl', full_name='Leon', role='APPROVER', label= None),), (AgreementSigner(email='leon@email.cl', full_name='Leon', role='APPROVER', label= None),)]
+
+        # signer_record_scalar = session.execute(
+        #     stmt
+        # ).scalar_one_or_none()  # instancia de Agreement Signer
+        # # content= AgreementSigner(email='ernesto@email.cl', full_name='Ernesto', role='APPROVER', label= None)
+        # logger.debug(
+        #     f" signer_record_scalar type:{type(signer_record_scalar)}\n content= {signer_record_scalar} "
+        # )
+
+        # signer_record_first = session.execute(stmt).first()  # item SQLA.row
+        # # content= (AgreementSigner(email='ernesto@email.cl', full_name='Ernesto', role='APPROVER', label= None),)
+        # logger.debug(
+        #     f" signer_record_first type:{type(signer_record_first)}\n content= {signer_record_first} "
+        # )
+
+        #
+        # --- EDGE CASE same email, multiple roles
+        # Find out if api_response is not and edge case
+        # Process normal case
+        # else:
+        #   Process edge case
+
+        # --- Edge case same approver (email) has more than one role
+        # If record_list len == 1:
+        # go for standard option
+        # else:
+        #   iterate len (record_list):
+        #   find first record
+        #
 
 
 def insert_jad_content(agreement_id: str, input_dict: dict) -> int:
@@ -869,6 +965,8 @@ def insert_jad_content(agreement_id: str, input_dict: dict) -> int:
             cuenta_contable=input_dict["cuenta_contable"],
             centro_costo=input_dict["centro_costo"],
             orden_controlling=input_dict["orden_controlling"],
+            qa_flag=input_dict.get("qa_flag", False),
+            dev_notes=input_dict["dev_notes"],
             # last_sync= date.today() - should be automatically updated by SQLA
         )
         session.add(new_jad_record)

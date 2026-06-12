@@ -25,3 +25,6 @@ logs/
 
 # AI Agents
 agents/
+
+# debug confidential data
+last_bug_ignore.md

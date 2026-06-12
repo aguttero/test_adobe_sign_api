@@ -172,11 +172,31 @@ def parse_jad_words(tokens: list) -> dict:
     if idx != -1:
         # Skip the full header: 'Criticidad', 'del', 'Servicio' (3 tokens)
         header_end = idx + 3  # adjust if your header varies
-        uf_amount_float = float(
-            tokens[header_end].strip().replace(".", "").replace(",", ".")
-        )
-        result["monto_uf"] = uf_amount_float
-        logger.debug(f"Found monto_uf= {result['monto_uf']!r}")
+        # --- Edge Cases
+        # --- UF , +IVA, USD, UFnnnn, decimal point instead of comma
+        target_token = tokens[header_end].lower()
+        logger.debug(f"Found target_token= {target_token}")
+
+        # --- Edge Case UF in previous token or in token
+        if "uf" in target_token:
+            cleaned_target = target_token.replace("uf", "")
+            # Si el toke solo contiene UF entonces tomar el idx +1 (token siguiente)
+            if not cleaned_target:
+                header_end += 1
+
+        try:
+            uf_amount_float = float(
+                tokens[header_end].strip().replace(".", "").replace(",", ".")
+            )
+            result["monto_uf"] = uf_amount_float
+            logger.debug(f"Found monto_uf= {result['monto_uf']!r}")
+        except ValueError as e:
+            result["dev_notes"] = (
+                f"{tokens[header_end]}_{tokens[header_end + 1]}_{tokens[header_end + 2]}"
+            )
+            logger.debug(
+                f"Not able to convert to float: value= {tokens[header_end]}_{tokens[header_end + 1]}. Error: {e}"
+            )
 
     # --- Cuenta Contable (Accounting Account) ---
     # Anchor/header: 'Cuenta', 'Contable', 'Centro', 'de', 'Costo', 'Orden', 'Controlling'
@@ -201,6 +221,44 @@ def parse_jad_words(tokens: list) -> dict:
     if "centro_costo" in result:
         orden_ctrl_idx = centro_costo_idx + 1
         result["orden_controlling"] = tokens[orden_ctrl_idx]
+        # --- Edge Case management
+        if (
+            "matriz" in result["orden_controlling"].lower()
+            or "completar" in result["orden_controlling"].lower()
+            or "descripción" in result["orden_controlling"].lower()
+        ):
+            result["orden_controlling"] = "dato no especificado"
+
         logger.debug(f"orden_controlling= {result['orden_controlling']!r}")
 
     return result
+
+
+def validate_jad_dict(agreement_id: str, raw_record: dict) -> dict:
+    """Validates content in tokenized dict and marks for manual review if needed"""
+    validated_dict = {}
+    validated_dict["gerencia_solicitante"] = raw_record.get(
+        "gerencia_solicitante", "dato no especificado"
+    )
+    validated_dict["rut_proveedor"] = raw_record.get(
+        "rut_proveedor", "dato no especificado"
+    )
+    validated_dict["nombre_proveedor"] = raw_record.get(
+        "nombre_proveedor", "dato no especificado"
+    )
+    validated_dict["monto_uf"] = raw_record.get("monto_uf", -1)
+    validated_dict["cuenta_contable"] = raw_record.get(
+        "cuenta_contable", "dato no especificado"
+    )
+    validated_dict["centro_costo"] = raw_record.get(
+        "centro_costo", "dato no especificado"
+    )
+    validated_dict["orden_controlling"] = raw_record.get(
+        "orden_controlling", "dato no especificado"
+    )
+    validated_dict["dev_notes"] = raw_record.get("dev_notes", "")
+
+    if validated_dict["monto_uf"] == -1:
+        validated_dict["qa_flag"] = True
+
+    return validated_dict

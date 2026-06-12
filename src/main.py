@@ -385,7 +385,7 @@ def download_documents(date_range_start, date_range_end, agreement_type: str) ->
     # ITERATE AGREEMENT LIST TO FETCH PDF FROM API, APPROVER INFO FROM API STORE and UPDATE DOC INDEX TABLE
     counter = 0
     # for agrmnt_id in target_agreement_list[7:8]:  # test agreement pkid=1195
-    for agrmnt_id in target_agreement_list:
+    for agrmnt_id in target_agreement_list[3:4]:
         # ---DOWNLOAD AGREEMENT FROM API
         # api_pdf_bytes = api.download_agreement(agrmnt_id)
         # if api_pdf_bytes:
@@ -411,13 +411,13 @@ def download_documents(date_range_start, date_range_end, agreement_type: str) ->
         # )
 
         # --- FETCH APPROVERS FROM API
-        # api_response = api.fetch_approvers(agrmnt_id)
-        # logger.debug(f"api_response= {api_response}")
+        api_response = api.fetch_approvers(agrmnt_id)
+        logger.debug(f"api_response= {api_response}")
         # PENDING: PARSE API_RESPONSE (current parsing is done inside api.function now) Move to separate parse function
 
         # --- UPDATE APPROVER TABLE
         # TEST agreement_id updated = 1195
-        # db.update_approvers(agrmnt_id, api_response)
+        db.update_approvers(agrmnt_id, api_response)
 
         # --- CONVERT DOCUMENT TO WORDS
         # pdf_file_name = f"{agrmnt_id}.pdf"
@@ -440,7 +440,8 @@ def download_documents(date_range_start, date_range_end, agreement_type: str) ->
     # downloaded_agreement_list = target_agreement_list gets assigned after the api call in this function
     # PENDING: ADD VALIDATION TO target list vs downloaded list
     # downloaded_agreement_list = target_agreement_list[7:8]
-    downloaded_agreement_list = target_agreement_list[12:20]
+    # downloaded_agreement_list = target_agreement_list[0:74]
+    downloaded_agreement_list = target_agreement_list
 
     # ----TEST CODE
     logger.debug(f"Downloaded agreement list= {downloaded_agreement_list}")
@@ -459,8 +460,12 @@ def parse_documents(agreement_list: list):
         # logger.debug(f"result_dict_len= {len(result_dict)}"
         logger.debug(f"result_dict= {result_dict}")
 
+        # --- VALIDATE WORD DICT BEFORE DB INSERTION
+        validated_dict: dict = parser.validate_jad_dict(agreement_id, result_dict)
+        logger.debug(f"Valdated_dict= {validated_dict}")
+
         # --- STORE JAD CONTENT DATA IN DB TABLE
-        result = db.insert_jad_content(agreement_id, result_dict)
+        result = db.insert_jad_content(agreement_id, validated_dict)
         logger.debug(f"Jad DB table update result= {result}")
 
         # --- UPDATE DOC STATUS TABLE
@@ -678,8 +683,8 @@ def dev_main() -> int:
         # ----- PARSE STEP - FROM TOKENS TO FIELD DATA
         # fetch from DB new JAD agreement_id List
         # Loop JADS
-        parse_result = parse_documents(agreements_found)
-        logger.debug(f"parse_result= {parse_result}")
+        # parse_result = parse_documents(agreements_found)
+        # logger.debug(f"parse_result= {parse_result}")
 
         # ------- FINAL VALIDATION AND CLOSE STEP
         # Determine overall success status based on individual step statuses
